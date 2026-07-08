@@ -165,6 +165,18 @@ export default function GlobalHeader({ currentUser, currentView, onNavigate, lan
                 {t.transactions}
               </button>
 
+              <button
+                onClick={() => onNavigate("deposit-withdraw")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  currentView === "deposit-withdraw"
+                    ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                }`}
+              >
+                <Plus className="w-4 h-4 text-indigo-500" />
+                {language === "bn" ? "জমা বা উত্তোলন" : "Deposit/Withdrawal"}
+              </button>
+
               {currentUser.role !== "member" && (
                 <button
                   onClick={() => onNavigate("subscription-requests")}
@@ -298,6 +310,16 @@ export default function GlobalHeader({ currentUser, currentView, onNavigate, lan
                         className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
                       >
                         <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {t.transactions}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          onNavigate("deposit-withdraw");
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-indigo-500" /> {language === "bn" ? "জমা বা উত্তোলন" : "Deposit or Withdrawal"}
                       </button>
 
                       {currentUser.role !== "member" && (
@@ -526,6 +548,18 @@ export default function GlobalHeader({ currentUser, currentView, onNavigate, lan
                 </>
               ) : (
                 <>
+                  <button
+                    onClick={() => onNavigate("deposit-withdraw")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "deposit-withdraw"
+                        ? "text-blue-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <Plus className={`w-5 h-5 transition-transform ${currentView === "deposit-withdraw" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{language === "bn" ? "জমা বা উত্তোলন" : "Deposit/Withdraw"}</span>
+                  </button>
+
                   <button
                     onClick={() => onNavigate("arrears")}
                     className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${

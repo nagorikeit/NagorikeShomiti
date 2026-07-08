@@ -1880,8 +1880,8 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
 
         {activeSubTab === "savings" && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left Column: Form (5 columns) */}
-              <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-fadeIn">
+              {/* Left Column: Form Hidden (Moved to dedicated page) */}
+              <div className="hidden lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-fadeIn">
                 <div className="bg-indigo-600 text-white px-5 py-4">
                   <h3 className="text-sm sm:text-md font-black flex items-center gap-1.5">
                     <Coins className="w-4 h-4" />
@@ -2235,8 +2235,31 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
                 </form>
               </div>
 
-              {/* Right Column: Savings Requests Queue (7 columns) */}
-              <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* Right Column: Savings Requests Queue (Expanded to Full 12 columns) */}
+              <div className="lg:col-span-12 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                {/* Redirection banner */}
+                <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border-b border-indigo-150 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fadeIn">
+                  <div className="flex items-center gap-3.5 text-left">
+                    <span className="p-3 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-md">
+                      <Coins className="w-5 h-5 text-white" />
+                    </span>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">
+                        সঞ্চয় জমা ও উত্তোলন এখন আলাদা পেজে!
+                      </h4>
+                      <p className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                        ইউজার ফ্রেন্ডলি এবং আরও সুরক্ষিত উপায়ে লেনদেনের জন্য জমা ও উত্তোলন ফাংশনটি নতুন ডেডিকেটেড পেজে স্থানান্তর করা হয়েছে।
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onNavigate("deposit-withdraw")}
+                    className="w-full sm:w-auto px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    জমা বা উত্তোলন পোর্টাল
+                  </button>
+                </div>
                 <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/40">
                   <div className="flex items-center gap-2">
                     <span className="p-1.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 flex items-center justify-center">

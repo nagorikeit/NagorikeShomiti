@@ -16,9 +16,10 @@ import TransactionsView from "./components/TransactionsView";
 import SettingsView from "./components/SettingsView";
 import ActivityView from "./components/ActivityView";
 import SubscriptionRequestsView from "./components/SubscriptionRequestsView";
+import DepositWithdrawView from "./components/DepositWithdrawView";
 import { motion, AnimatePresence } from "motion/react";
 
-type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests";
+type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw";
 
 export default function App() {
   const [authStateLoading, setAuthStateLoading] = useState(true);
@@ -333,6 +334,13 @@ export default function App() {
 
           {currentView === "transactions" && (
             <TransactionsView
+              currentUser={currentUser}
+              onNavigate={handleNavigate}
+            />
+          )}
+
+          {currentView === "deposit-withdraw" && (
+            <DepositWithdrawView
               currentUser={currentUser}
               onNavigate={handleNavigate}
             />
