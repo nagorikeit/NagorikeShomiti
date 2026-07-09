@@ -230,21 +230,21 @@ export default function App() {
   }, [currentUser]);
 
   // Dynamic application name and manifest based on user's company
-  const [appName, setAppName] = useState("Remix: নগরীক সমিতি");
+  const [appName, setAppName] = useState("নগরীক সমিতি");
 
   useEffect(() => {
     if (!currentUser) {
-      setAppName("Remix: নগরীক সমিতি");
+      setAppName("নগরীক সমিতি");
       return;
     }
 
     if (currentUser.role === "admin") {
-      setAppName("Remix: সুপার এডমিন");
+      setAppName(currentUser.name || "সুপার এডমিন");
       return;
     }
 
     if (currentUser.role === "company") {
-      const name = currentUser.companyName || currentUser.name || "Remix: নগরীক সমিতি";
+      const name = currentUser.companyName || currentUser.name || "নগরীক সমিতি";
       setAppName(name);
       return;
     }
@@ -254,18 +254,18 @@ export default function App() {
       const unsub = onSnapshot(companyRef, (snap) => {
         if (snap.exists()) {
           const companyData = snap.data();
-          const name = companyData.companyName || companyData.name || "Remix: নগরীক সমিতি";
+          const name = companyData.companyName || companyData.name || "নগরীক সমিতি";
           setAppName(name);
         } else {
-          setAppName("Remix: নগরীক সমিতি");
+          setAppName("নগরীক সমিতি");
         }
       }, (err) => {
         console.error("Error listening to company name for manifest:", err);
-        setAppName("Remix: নগরীক সমিতি");
+        setAppName("নগরীক সমিতি");
       });
       return () => unsub();
     } else {
-      setAppName("Remix: নগরীক সমিতি");
+      setAppName("নগরীক সমিতি");
     }
   }, [currentUser]);
 
@@ -286,13 +286,13 @@ export default function App() {
       orientation: "portrait-primary",
       icons: [
         {
-          src: "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=192&h=192&q=80",
+          src: "/app_icon.jpg",
           sizes: "192x192",
           type: "image/jpeg",
           purpose: "any"
         },
         {
-          src: "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=512&h=512&q=80",
+          src: "/app_icon.jpg",
           sizes: "512x512",
           type: "image/jpeg",
           purpose: "any"
@@ -498,7 +498,6 @@ export default function App() {
             <div>
               <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                 <span>{appName} অ্যাপ ইন্সটল করুন</span>
-                <span className="inline-flex items-center gap-0.5 text-[8px] bg-sky-500/10 text-sky-600 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Chrome App</span>
               </h4>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
                 সহজে ও দ্রুত ব্যবহারের জন্য সরাসরি আপনার মোবাইলের হোম স্ক্রিনে যুক্ত করুন।

@@ -10,9 +10,18 @@ interface InstallGuideModalProps {
 export default function InstallGuideModal({ isOpen, onClose, appName }: InstallGuideModalProps) {
   if (!isOpen) return null;
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[2100] p-4 animate-fadeIn font-sans">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-5 text-left relative overflow-hidden transition-all duration-200">
+    <div 
+      onClick={handleBackdropClick}
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[2100] p-4 overflow-y-auto animate-fadeIn font-sans"
+    >
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-5 text-left relative overflow-hidden transition-all duration-200 max-h-[90vh] overflow-y-auto">
         
         {/* Decorative background accent */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-3xl" />
@@ -25,11 +34,8 @@ export default function InstallGuideModal({ isOpen, onClose, appName }: InstallG
             </span>
             <div>
               <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm sm:text-base">
-                সরাসরি অ্যাপ হিসেবে ইনস্টল করুন
+                {appName} ইন্সটল করুন
               </h3>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider mt-0.5">
-                {appName} • Progressive Web App (PWA)
-              </p>
             </div>
           </div>
           <button 
