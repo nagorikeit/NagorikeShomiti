@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "../firebase";
 import { User } from "../types";
 import { doc, getDoc, collection, query, where, getDocs, limit, onSnapshot } from "firebase/firestore";
-import { LayoutDashboard, Users, UserPlus, User as UserIcon, LogOut, Building2, AlertCircle, Bell, ArrowLeftRight, Plus, Sun, Moon, Globe, Settings, Crown } from "lucide-react";
+import { LayoutDashboard, Users, UserPlus, User as UserIcon, LogOut, Building2, AlertCircle, Bell, ArrowLeftRight, Plus, Sun, Moon, Globe, Settings, Crown, Smartphone, Download } from "lucide-react";
 import { translations, Language } from "../utils/translations";
 
 interface GlobalHeaderProps {
@@ -14,9 +14,24 @@ interface GlobalHeaderProps {
   theme?: "light" | "dark";
   setTheme?: (theme: "light" | "dark") => void;
   isNavVisible?: boolean;
+  showInstallBtn?: boolean;
+  onInstallApp?: () => void;
+  appName?: string;
 }
 
-export default function GlobalHeader({ currentUser, currentView, onNavigate, language = "bn", setLanguage, theme = "light", setTheme, isNavVisible = true }: GlobalHeaderProps) {
+export default function GlobalHeader({ 
+  currentUser, 
+  currentView, 
+  onNavigate, 
+  language = "bn", 
+  setLanguage, 
+  theme = "light", 
+  setTheme, 
+  isNavVisible = true,
+  showInstallBtn = false,
+  onInstallApp,
+  appName = "সমিতি"
+}: GlobalHeaderProps) {
   const t = translations[language];
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -377,6 +392,18 @@ export default function GlobalHeader({ currentUser, currentView, onNavigate, lan
                       >
                         <Settings className="w-3.5 h-3.5 text-indigo-500" /> ফিটিংস ও সেটিংস (Settings)
                       </button>
+
+                      {showInstallBtn && onInstallApp && (
+                        <button
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                            onInstallApp();
+                          }}
+                          className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-sky-50 dark:hover:bg-slate-850/80 transition flex items-center gap-2 cursor-pointer text-sky-600 dark:text-sky-400 font-black"
+                        >
+                          <Smartphone className="w-3.5 h-3.5 text-sky-500" /> {appName} ইন্সটল করুন
+                        </button>
+                      )}
 
                       <hr className="my-1 border-slate-100 dark:border-slate-800" />
 

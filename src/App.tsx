@@ -19,6 +19,7 @@ import SubscriptionRequestsView from "./components/SubscriptionRequestsView";
 import DepositWithdrawView from "./components/DepositWithdrawView";
 import { motion, AnimatePresence } from "motion/react";
 import { Download, X, Smartphone, Sparkles } from "lucide-react";
+import InstallGuideModal from "./components/InstallGuideModal";
 
 type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw";
 
@@ -77,6 +78,7 @@ export default function App() {
   // PWA Install State & Event listeners
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -98,12 +100,16 @@ export default function App() {
   }, []);
 
   const handleInstallApp = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User install choice: ${outcome}`);
-    setDeferredPrompt(null);
-    setShowInstallBanner(false);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User install choice: ${outcome}`);
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    } else {
+      // Fallback: If prompt is not deferred, show the step-by-step install guide modal
+      setShowInstallGuide(true);
+    }
   };
 
   // Monitor Auth State
@@ -222,6 +228,97 @@ export default function App() {
       setCompanyPlan("free");
     }
   }, [currentUser]);
+
+  // Dynamic application name and manifest based on user's company
+  const [appName, setAppName] = useState("Remix: নগরীক সমিতি");
+
+  useEffect(() => {
+    if (!currentUser) {
+      setAppName("Remix: নগরীক সমিতি");
+      return;
+    }
+
+    if (currentUser.role === "admin") {
+      setAppName("Remix: সুপার এডমিন");
+      return;
+    }
+
+    if (currentUser.role === "company") {
+      const name = currentUser.companyName || currentUser.name || "Remix: নগরীক সমিতি";
+      setAppName(name);
+      return;
+    }
+
+    if (currentUser.role === "member" && currentUser.companyId) {
+      const companyRef = doc(db, "users", currentUser.companyId);
+      const unsub = onSnapshot(companyRef, (snap) => {
+        if (snap.exists()) {
+          const companyData = snap.data();
+          const name = companyData.companyName || companyData.name || "Remix: নগরীক সমিতি";
+          setAppName(name);
+        } else {
+          setAppName("Remix: নগরীক সমিতি");
+        }
+      }, (err) => {
+        console.error("Error listening to company name for manifest:", err);
+        setAppName("Remix: নগরীক সমিতি");
+      });
+      return () => unsub();
+    } else {
+      setAppName("Remix: নগরীক সমিতি");
+    }
+  }, [currentUser]);
+
+  // Handle dynamic manifest.json generation and browser title update
+  useEffect(() => {
+    // Update Document Title
+    document.title = appName;
+
+    // Build customized dynamic manifest object
+    const manifest = {
+      name: appName,
+      short_name: appName.length > 15 ? appName.substring(0, 15) : appName,
+      description: `${appName} - ডিজিটাল মেম্বার খাতা ও সঞ্চয় ড্যাশবোর্ড`,
+      start_url: "/",
+      display: "standalone",
+      background_color: "#0f172a",
+      theme_color: "#0284c7",
+      orientation: "portrait-primary",
+      icons: [
+        {
+          src: "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=192&h=192&q=80",
+          sizes: "192x192",
+          type: "image/jpeg",
+          purpose: "any"
+        },
+        {
+          src: "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=512&h=512&q=80",
+          sizes: "512x512",
+          type: "image/jpeg",
+          purpose: "any"
+        }
+      ]
+    };
+
+    const stringManifest = JSON.stringify(manifest);
+    const blob = new Blob([stringManifest], { type: "application/json" });
+    const manifestURL = URL.createObjectURL(blob);
+
+    // Swap or insert the <link rel="manifest"> tag in document head
+    let linkElement = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
+    if (linkElement) {
+      linkElement.href = manifestURL;
+    } else {
+      linkElement = document.createElement("link");
+      linkElement.rel = "manifest";
+      linkElement.href = manifestURL;
+      document.head.appendChild(linkElement);
+    }
+
+    return () => {
+      URL.revokeObjectURL(manifestURL);
+    };
+  }, [appName]);
 
   // Subscription system entry counting
   const [totalEntries, setTotalEntries] = useState(0);
@@ -383,6 +480,14 @@ export default function App() {
         theme={theme}
         setTheme={setTheme}
         isNavVisible={isNavVisible}
+        showInstallBtn={true}
+        onInstallApp={handleInstallApp}
+        appName={appName}
+      />
+      <InstallGuideModal 
+        isOpen={showInstallGuide} 
+        onClose={() => setShowInstallGuide(false)} 
+        appName={appName} 
       />
       {showInstallBanner && (
         <div className="bg-sky-50 dark:bg-sky-950/40 border-b border-sky-100 dark:border-sky-900/50 py-3 px-4 font-sans flex items-center justify-between gap-4 animate-fadeIn">
@@ -392,7 +497,7 @@ export default function App() {
             </div>
             <div>
               <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                <span>সমিতি অ্যাপ ইন্সটল করুন</span>
+                <span>{appName} অ্যাপ ইন্সটল করুন</span>
                 <span className="inline-flex items-center gap-0.5 text-[8px] bg-sky-500/10 text-sky-600 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Chrome App</span>
               </h4>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">

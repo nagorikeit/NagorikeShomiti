@@ -28,13 +28,11 @@ self.addEventListener("activate", (event) => {
 
 // Network-first strategy to ensure real-time Firestore data and updates are never stale
 self.addEventListener("fetch", (event) => {
-  // Only handle GET requests and exclude Firestore/Authentication calls
-  if (
-    event.request.method !== "GET" ||
-    event.request.url.includes("firestore.googleapis.com") ||
-    event.request.url.includes("identitytoolkit.googleapis.com") ||
-    event.request.url.includes("/api/")
-  ) {
+  const url = new URL(event.request.url);
+
+  // Only handle GET requests of the same origin (local app assets like HTML, CSS, JS)
+  // Completely bypass Firebase connections (which are cross-origin) and custom APIs
+  if (event.request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
     return;
   }
 
