@@ -153,7 +153,7 @@ export interface TransactionRequest {
   userName: string;
   userEmail?: string;
   flow: "IN" | "OUT";
-  type: "saving" | "installment";
+  type: "saving" | "installment" | "project";
   amount: number;
   date: string;
   memo: string;
@@ -173,6 +173,10 @@ export interface TransactionRequest {
   // Installment reference if any
   installmentId?: string;
   installmentName?: string;
+
+  // Project reference if any
+  projectId?: string;
+  projectName?: string;
 
   status: "pending" | "approved" | "rejected";
   rejectedReason?: string;

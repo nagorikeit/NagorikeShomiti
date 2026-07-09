@@ -10,9 +10,19 @@ interface MemberAddViewProps {
   currentUser: User;
   onNavigate: (view: string) => void;
   totalEntries?: number;
+  subscriptionLimits?: {
+    freeLimit: number;
+    monthlyLimit: number;
+    yearlyLimit: number;
+  };
 }
 
-export default function MemberAddView({ currentUser, onNavigate, totalEntries = 0 }: MemberAddViewProps) {
+export default function MemberAddView({ 
+  currentUser, 
+  onNavigate, 
+  totalEntries = 0,
+  subscriptionLimits = { freeLimit: 50, monthlyLimit: 1000, yearlyLimit: 10000 }
+}: MemberAddViewProps) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -162,6 +172,18 @@ export default function MemberAddView({ currentUser, onNavigate, totalEntries = 
   };
 
   const handleAddMember = async () => {
+    const currentPlan = currentUser.plan || "free";
+    const currentLimit = currentPlan === "monthly" 
+      ? subscriptionLimits.monthlyLimit 
+      : currentPlan === "yearly" 
+      ? subscriptionLimits.yearlyLimit 
+      : subscriptionLimits.freeLimit;
+
+    if (totalEntries >= currentLimit && currentUser.role !== "admin") {
+      showToast(`❌ আপনার সাবস্ক্রিপশন লিমিট (${currentLimit}) পূর্ণ হয়ে গেছে! নতুন মেম্বার যোগ করতে প্ল্যান আপগ্রেড করুন।`, "error");
+      return;
+    }
+
     if (!validate()) {
       showToast("❌ সঠিকভাবে সব তথ্য পূরণ করুন", "error");
       return;
@@ -284,6 +306,41 @@ export default function MemberAddView({ currentUser, onNavigate, totalEntries = 
       </div>
 
       <div className="max-w-xl mx-auto px-4 space-y-4">
+        {(() => {
+          const currentPlan = currentUser.plan || "free";
+          const currentLimit = currentPlan === "monthly" 
+            ? subscriptionLimits.monthlyLimit 
+            : currentPlan === "yearly" 
+            ? subscriptionLimits.yearlyLimit 
+            : subscriptionLimits.freeLimit;
+          const planLabel = currentPlan === "monthly" 
+            ? "মাসিক প্রিমিয়াম" 
+            : currentPlan === "yearly" 
+            ? "বাৎসরিক ভিআইপি" 
+            : "ফ্রি প্ল্যান";
+
+          if (totalEntries >= currentLimit && currentUser.role !== "admin") {
+            return (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-3xl text-xs text-rose-800 font-bold space-y-2.5 animate-fadeIn font-sans">
+                <div className="flex items-center gap-2 text-rose-900 font-black">
+                  <span className="p-1 bg-rose-100 rounded-lg">⚠️</span>
+                  <span>ডাটা এন্ট্রি লিমিট অতিক্রম হয়েছে!</span>
+                </div>
+                <p className="leading-relaxed">
+                  আপনার {planLabel}-এ সর্বোচ্চ {toBanglaDigits(currentLimit)} টি ডাটা এন্ট্রির সীমা পূর্ণ হয়ে গেছে। বর্তমানে আপনি {toBanglaDigits(totalEntries)} টি এন্ট্রি করেছেন। নতুন মেম্বার যোগ করতে অনুগ্রহ করে আপনার প্ল্যানটি আপগ্রেড করুন।
+                </p>
+                <button
+                  onClick={() => onNavigate("subscription-requests")}
+                  className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition font-black cursor-pointer shadow-xs text-[10px]"
+                >
+                  সাবস্ক্রিপশন প্ল্যান দেখুন ও আপগ্রেড করুন
+                </button>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         {/* Basic Personal Info */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">

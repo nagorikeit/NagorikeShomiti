@@ -285,7 +285,7 @@ export default function GlobalHeader({ currentUser, currentView, onNavigate, lan
                     className="fixed inset-0 z-40 bg-black/5 dark:bg-black/20" 
                     onClick={() => setShowProfileMenu(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 py-2 z-50 text-slate-800 dark:text-slate-100 animate-fadeIn font-sans transition-colors duration-200">
+                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 py-2 z-50 text-slate-800 dark:text-slate-100 animate-fadeIn font-sans transition-colors duration-200 max-h-[min(480px,calc(100vh-100px))] overflow-y-auto">
                     <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 text-left">
                       <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{currentUser.name}</p>
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{currentUser.email}</p>
@@ -435,8 +435,8 @@ export default function GlobalHeader({ currentUser, currentView, onNavigate, lan
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                               {t.companySupport}
                             </span>
-                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono tracking-tight group-hover:underline">
-                              {companyWhatsapp}
+                            <span className="text-[9px] bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md font-extrabold tracking-tight group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800 transition">
+                              {language === "bn" ? "মেসেজ দিন" : "Message"}
                             </span>
                           </a>
                         ) : null}
@@ -452,8 +452,8 @@ export default function GlobalHeader({ currentUser, currentView, onNavigate, lan
                               <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                               {t.devSupport}
                             </span>
-                            <span className="text-[9px] text-blue-600 dark:text-blue-400 font-mono tracking-tight group-hover:underline">
-                              {adminWhatsapp}
+                            <span className="text-[9px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-md font-extrabold tracking-tight group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition">
+                              {language === "bn" ? "মেসেজ দিন" : "Message"}
                             </span>
                           </a>
                         ) : null}

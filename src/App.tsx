@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, onSnapshot, collectionGroup } from "firebase/firestore";
+import { collection, query, where, onSnapshot, collectionGroup, doc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { User } from "./types";
 import AuthView from "./components/AuthView";
@@ -18,6 +18,7 @@ import ActivityView from "./components/ActivityView";
 import SubscriptionRequestsView from "./components/SubscriptionRequestsView";
 import DepositWithdrawView from "./components/DepositWithdrawView";
 import { motion, AnimatePresence } from "motion/react";
+import { Download, X, Smartphone, Sparkles } from "lucide-react";
 
 type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw";
 
@@ -73,6 +74,38 @@ export default function App() {
   const [currentView, setCurrentView] = useState<RouteView>("login");
   const [navigationParams, setNavigationParams] = useState<any>(null);
 
+  // PWA Install State & Event listeners
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    // If already running in standalone (installed) mode, hide the banner
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setShowInstallBanner(false);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User install choice: ${outcome}`);
+    setDeferredPrompt(null);
+    setShowInstallBanner(false);
+  };
+
   // Monitor Auth State
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -126,6 +159,69 @@ export default function App() {
 
     return () => unsub();
   }, [firebaseUser]);
+
+  // Subscription system entry limits
+  const [subscriptionLimits, setSubscriptionLimits] = useState({
+    freeLimit: 50,
+    monthlyLimit: 1000,
+    yearlyLimit: 10000
+  });
+
+  useEffect(() => {
+    const limitsRef = doc(db, "settings", "subscription_limits");
+    const unsub = onSnapshot(limitsRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setSubscriptionLimits({
+          freeLimit: data.freeLimit ?? 50,
+          monthlyLimit: data.monthlyLimit ?? 1000,
+          yearlyLimit: data.yearlyLimit ?? 10000
+        });
+      }
+    }, (err) => {
+      console.error("Error loading subscription limits in App:", err);
+    });
+    return () => unsub();
+  }, []);
+
+  // Real-time parent company plan state for members, or own plan for companies
+  const [companyPlan, setCompanyPlan] = useState<"free" | "monthly" | "yearly">("free");
+
+  useEffect(() => {
+    if (!currentUser) {
+      setCompanyPlan("free");
+      return;
+    }
+
+    if (currentUser.role === "admin") {
+      setCompanyPlan("yearly"); // Admins are always premium / ad-free
+      return;
+    }
+
+    if (currentUser.role === "company") {
+      setCompanyPlan(currentUser.plan || "free");
+      return;
+    }
+
+    // If member, listen to the parent company document in real-time
+    if (currentUser.role === "member" && currentUser.companyId) {
+      const companyRef = doc(db, "users", currentUser.companyId);
+      const unsub = onSnapshot(companyRef, (snap) => {
+        if (snap.exists()) {
+          const companyData = snap.data();
+          setCompanyPlan(companyData.plan || "free");
+        } else {
+          setCompanyPlan("free");
+        }
+      }, (err) => {
+        console.error("Error listening to company subscription plan:", err);
+        setCompanyPlan("free");
+      });
+      return () => unsub();
+    } else {
+      setCompanyPlan("free");
+    }
+  }, [currentUser]);
 
   // Subscription system entry counting
   const [totalEntries, setTotalEntries] = useState(0);
@@ -288,6 +384,40 @@ export default function App() {
         setTheme={setTheme}
         isNavVisible={isNavVisible}
       />
+      {showInstallBanner && (
+        <div className="bg-sky-50 dark:bg-sky-950/40 border-b border-sky-100 dark:border-sky-900/50 py-3 px-4 font-sans flex items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-2xl shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <span>সমিতি অ্যাপ ইন্সটল করুন</span>
+                <span className="inline-flex items-center gap-0.5 text-[8px] bg-sky-500/10 text-sky-600 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Chrome App</span>
+              </h4>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                সহজে ও দ্রুত ব্যবহারের জন্য সরাসরি আপনার মোবাইলের হোম স্ক্রিনে যুক্ত করুন।
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleInstallApp}
+              className="py-1.5 px-3 bg-sky-600 hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600 text-white text-[10px] font-black rounded-xl transition cursor-pointer flex items-center gap-1 shadow-sm"
+            >
+              <Download className="w-3 h-3" />
+              <span>ইন্সটল করুন</span>
+            </button>
+            <button
+              onClick={() => setShowInstallBanner(false)}
+              className="p-2 hover:bg-sky-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-xl transition cursor-pointer"
+              title="বন্ধ করুন"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
       <GlobalSlider currentUser={currentUser} language={language} />
       <AnimatePresence mode="wait">
         <motion.div
@@ -298,7 +428,7 @@ export default function App() {
           transition={{ duration: 0.2, ease: "easeInOut" }}
         >
           {currentView === "dashboard" && (
-            <DashboardView currentUser={currentUser} onNavigate={handleNavigate} navigationParams={navigationParams} totalEntries={totalEntries} isNavVisible={isNavVisible} language={language} />
+            <DashboardView currentUser={currentUser} onNavigate={handleNavigate} navigationParams={navigationParams} totalEntries={totalEntries} isNavVisible={isNavVisible} language={language} companyPlan={companyPlan} />
           )}
 
           {currentView === "member-list" && (
@@ -306,7 +436,7 @@ export default function App() {
           )}
 
           {currentView === "member-add" && (
-            <MemberAddView currentUser={currentUser} onNavigate={handleNavigate} totalEntries={totalEntries} />
+            <MemberAddView currentUser={currentUser} onNavigate={handleNavigate} totalEntries={totalEntries} subscriptionLimits={subscriptionLimits} />
           )}
 
           {currentView === "profile" && (
@@ -315,6 +445,7 @@ export default function App() {
               targetId={navigationParams?.id}
               onNavigate={handleNavigate}
               totalEntries={totalEntries}
+              subscriptionLimits={subscriptionLimits}
             />
           )}
 
@@ -343,6 +474,7 @@ export default function App() {
             <DepositWithdrawView
               currentUser={currentUser}
               onNavigate={handleNavigate}
+              navigationParams={navigationParams}
             />
           )}
 
@@ -350,6 +482,7 @@ export default function App() {
             <SubscriptionRequestsView
               currentUser={currentUser}
               onNavigate={handleNavigate}
+              subscriptionLimits={subscriptionLimits}
             />
           )}
 
@@ -361,6 +494,7 @@ export default function App() {
               setLanguage={setLanguage}
               theme={theme}
               setTheme={setTheme}
+              subscriptionLimits={subscriptionLimits}
             />
           )}
 

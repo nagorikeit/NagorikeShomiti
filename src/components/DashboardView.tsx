@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { User, Project, Transaction, Installment, HistoryEntry, InstallmentStep } from "../types";
+import GoogleAdComponent from "./GoogleAdComponent";
 import {
   STATUS_LABELS,
   STATUS_COLORS,
@@ -92,11 +93,20 @@ interface DashboardViewProps {
   totalEntries?: number;
   isNavVisible?: boolean;
   language?: "bn" | "en";
+  companyPlan?: "free" | "monthly" | "yearly";
 }
 
 type TabMode = "invest" | "projects" | "ledger";
 
-export default function DashboardView({ currentUser, onNavigate, navigationParams, totalEntries = 0, isNavVisible = true, language = "bn" }: DashboardViewProps) {
+export default function DashboardView({ 
+  currentUser, 
+  onNavigate, 
+  navigationParams, 
+  totalEntries = 0, 
+  isNavVisible = true, 
+  language = "bn",
+  companyPlan = "free"
+}: DashboardViewProps) {
   const [activeTab, setActiveTab] = useState<TabMode>("invest");
   const [loading, setLoading] = useState(true);
 
@@ -121,6 +131,11 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
   const [instTab, setInstTab] = useState<"schedule" | "history">("schedule");
   const [investHistoryTab, setInvestHistoryTab] = useState<"schedule" | "history">("schedule");
   const [customPayAmount, setCustomPayAmount] = useState<number>(0);
+  const [memberPayOption, setMemberPayOption] = useState<"monthly" | "full" | "custom">("monthly");
+  const [savingsPayOption, setSavingsPayOption] = useState<"monthly" | "arrears" | "custom">("monthly");
+  const [customSavingsPayAmount, setCustomSavingsPayAmount] = useState<number>(0);
+  const [projectInvestOption, setProjectInvestOption] = useState<"suggested_5k" | "suggested_10k" | "custom">("suggested_5k");
+  const [customProjectInvestAmount, setCustomProjectInvestAmount] = useState<number>(5000);
   const [paymentPreview, setPaymentPreview] = useState<{
     amount: number;
     scheduleCopy: InstallmentStep[];
@@ -836,8 +851,11 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
   const getDashboardSummary = () => {
     const {
       companyMembers,
+      companyProjects,
       projSummary,
+      memberProjectsShare,
       memberCalculations,
+      projectInstallmentIncome,
     } = getProjectInvestmentsAndShares();
 
     const globalTotalDeposit = companyMembers.reduce((sum, u) => sum + Number(u.amount || 0), 0);
@@ -896,7 +914,21 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
         totalIncomeWithdrawals: 0
       };
       const myDeposit = Number(calc.savingsBalance);
-      const myBalance = Number(calc.savingsBalance + calc.incomeBalance);
+
+      // Calculate member's own share of project sales and installments
+      let memberProjectSaleShare = 0;
+      let memberProjectInstallmentShare = 0;
+      companyProjects.forEach((p) => {
+        const pShare = (memberProjectsShare[currentUser.docId] || {})[p.id] || 0;
+        const pSale = (projSummary[p.id] || { sale: 0 }).sale;
+        const pInst = projectInstallmentIncome[p.id] || 0;
+        memberProjectSaleShare += pSale * pShare;
+        memberProjectInstallmentShare += pInst * pShare;
+      });
+
+      // Calculate consistent total balance using the exact formula displayed in the UI:
+      // (savingsBalance + investBalance + installmentIncome + projectIncome) - totalExpense
+      const myTotalBalance = calc.savingsBalance + calc.investBalance + memberProjectInstallmentShare + memberProjectSaleShare - calc.expense;
 
       // Find member's own installments and their due amount
       const myInstallments = companyInstallments.filter((inst) => 
@@ -915,7 +947,7 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
         totalExpense: calc.expense,
         totalIncome: calc.income,
         totalSales: calc.salesShare,
-        totalBalance: myBalance,
+        totalBalance: parseFloat(myTotalBalance.toFixed(2)),
         totalDue: myDue,
         savingsBalance: calc.savingsBalance,
         investBalance: calc.investBalance,
@@ -925,8 +957,8 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
         globalTotalIncome: totalIncome,
         globalTotalSales: projectIncome + installmentIncome + downPaymentIncome,
         businessTotalDeposit,
-        projectIncome: 0,
-        installmentIncome: 0,
+        projectIncome: parseFloat(memberProjectSaleShare.toFixed(2)),
+        installmentIncome: parseFloat(memberProjectInstallmentShare.toFixed(2)),
       };
     }
 
@@ -990,6 +1022,8 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
     setSelectedUser(u);
     setHistoryLoading(true);
     setInvestHistoryTab("schedule"); // default tab to schedule
+    setSavingsPayOption("monthly");
+    setCustomSavingsPayAmount(Number(u.investAmount || 0));
     setShowHistoryModal(true);
     try {
       const snap = await getDocs(collection(db, "users", u.docId, "history"));
@@ -1128,6 +1162,7 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
     setInstTab("schedule");
     const nextUnpaidStep = (inst.schedule || []).find((s) => s.status !== "paid");
     setCustomPayAmount(nextUnpaidStep ? nextUnpaidStep.amount - nextUnpaidStep.paidAmount : 0);
+    setMemberPayOption("monthly");
     setPaymentPreview(null);
   };
 
@@ -2076,6 +2111,57 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
         <p className="text-[11px] opacity-90 mt-1 font-medium">আজকের দিনটি শুভ হোক। নিচে আপনার ব্যবসার বর্তমান অবস্থা ও সদস্যদের কিস্তির তথ্য দেওয়া হলো।</p>
       </div>
 
+      {/* Real-time Ad / Premium Subscription Manager Banner */}
+      <div className="px-4 mb-3">
+        {companyPlan === "free" ? (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs font-sans">
+            <div className="space-y-1 max-w-2xl">
+              <div className="flex items-center gap-1.5">
+                <span className="bg-amber-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider">স্পন্সরড / বিজ্ঞাপন</span>
+                <span className="text-[10px] text-slate-400 font-bold">• ফ্রি প্ল্যান স্পন্সরশিপ</span>
+              </div>
+              <h4 className="text-xs font-black text-slate-800">
+                {currentUser.role === "member" 
+                  ? "মেম্বার খাতা প্রো: উন্নত ও বিজ্ঞাপনমুক্ত অভিজ্ঞতার জন্য আপনার কোম্পানিকে আপগ্রেড করতে বলুন!"
+                  : "মেম্বার খাতা প্রো: আনলিমিটেড এন্ট্রি ও অনলাইন পেমেন্ট গেটওয়ে চালুর অফার!"}
+              </h4>
+              <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
+                {currentUser.role === "member"
+                  ? "বর্তমানে আপনার কোম্পানি ফ্রি প্ল্যানে রয়েছে। কোম্পানি যদি মাসিক বা বাৎসরিক সাবস্ক্রিপশন গ্রহণ করে, তবে কোম্পানি এবং এর সকল মেম্বাররা সম্পূর্ণ বিজ্ঞাপনমুক্ত ও প্রিমিয়াম অভিজ্ঞতায় খাতা ব্যবহার করতে পারবেন।"
+                  : "ফ্রি লিমিট শেষ হওয়ার পূর্বেই আপগ্রেড করুন এবং আকর্ষণীয় ১৬% মূল্যছাড়ে বাৎসরিক ভিআইপি প্ল্যানটি উপভোগ করুন!"}
+              </p>
+            </div>
+            {currentUser.role === "company" && (
+              <button
+                onClick={() => onNavigate("subscription-requests")}
+                className="py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black rounded-xl transition cursor-pointer shadow-md shadow-amber-600/10 shrink-0 self-start sm:self-center"
+              >
+                প্যাকেজ দেখুন ও আপগ্রেড করুন
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="bg-emerald-50/40 border border-emerald-100/50 rounded-xl px-4 py-2 flex items-center justify-between font-sans">
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-600">✨</span>
+              <p className="text-[10px] font-black text-emerald-800">
+                {companyPlan === "monthly" ? "মাসিক প্রিমিয়াম" : "বাৎসরিক ভিআইপি"} সাবস্ক্রিপশন সক্রিয় (১০০% বিজ্ঞাপন-মুক্ত ইন্টারফেস)
+              </p>
+            </div>
+            <span className="text-[9px] font-bold text-emerald-500 bg-emerald-100/40 px-2.5 py-0.5 rounded-full border border-emerald-200/30">
+              PRO ACTIVE
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Non-intrusive Video Ads for Free users */}
+      {companyPlan === "free" && (
+        <div className="px-4 mb-3">
+          <GoogleAdComponent type="video" companyPlan={companyPlan} />
+        </div>
+      )}
+
       {/* Bento Stats Summary - Fund Lifecycle Pipeline (Ultra Compact Version) */}
       <div className="px-4 mt-1">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
@@ -2502,6 +2588,13 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Non-intrusive Banner Ads at the bottom of main view for Free users */}
+        {companyPlan === "free" && (
+          <div className="mt-6 mb-4 max-w-5xl mx-auto">
+            <GoogleAdComponent type="banner" companyPlan={companyPlan} />
           </div>
         )}
       </main>
@@ -3180,135 +3273,242 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
                 historyLoading ? (
                   <p className="text-center py-6 text-xs text-slate-400">ইতিহাস লোড হচ্ছে...</p>
                 ) : (
-                  <>
-                    <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-3 shrink-0">
-                      <button
-                        onClick={() => setInvestHistoryTab("schedule")}
-                        className={`flex-1 py-2 text-center text-xs font-bold rounded-xl transition ${
-                          investHistoryTab === "schedule" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-400 hover:text-slate-600"
-                        }`}
-                      >
-                        📅 সেভিংস সিডিউল (Schedule)
-                      </button>
-                      <button
-                        onClick={() => setInvestHistoryTab("history")}
-                        className={`flex-1 py-2 text-center text-xs font-bold rounded-xl transition ${
-                          investHistoryTab === "history" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-400 hover:text-slate-600"
-                        }`}
-                      >
-                        📋 জমার ইতিহাস (History)
-                      </button>
-                    </div>
+                  (() => {
+                    const savingsSchedule = getSavingsScheduleForUser(selectedUser, userHistory);
+                    const nextUnpaidSavings = savingsSchedule.find((item) => item.status !== "paid");
+                    const nextSavingsAmount = nextUnpaidSavings ? nextUnpaidSavings.amount : (selectedUser.investAmount || 500);
 
-                    {investHistoryTab === "schedule" ? (
-                      getSavingsScheduleForUser(selectedUser, userHistory).length === 0 ? (
-                        <p className="text-center text-slate-400 text-xs py-6">কোনো সেভিংস সিডিউল পাওয়া যায়নি (সেভিংস এর ধরণ ও তারিখ সঠিক নয়)</p>
-                      ) : (
-                        <div className="divide-y divide-slate-100 space-y-2.5">
-                          {getSavingsScheduleForUser(selectedUser, userHistory).map((item, index) => (
-                            <div key={index} className="flex justify-between items-center py-2.5">
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-bold text-slate-800">{item.label}</span>
-                                  {item.status === "paid" && (
-                                    <span className="text-[8px] bg-emerald-100 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded-sm">
-                                      পরিশোধিত
-                                    </span>
-                                  )}
-                                  {item.status === "overdue" && (
-                                    <span className="text-[8px] bg-rose-100 text-rose-700 font-extrabold px-1.5 py-0.5 rounded-sm">
-                                      বকেয়া
-                                    </span>
-                                  )}
-                                  {item.status === "upcoming" && (
-                                    <span className="text-[8px] bg-blue-100 text-blue-700 font-extrabold px-1.5 py-0.5 rounded-sm">
-                                      আসন্ন
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[9px] text-slate-400 mt-0.5">
-                                  জমার দিন: প্রতি মাসের {item.dayOfMonth} তারিখ
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <span className={`text-xs font-bold block ${item.status === "paid" ? "text-emerald-600" : item.status === "overdue" ? "text-rose-600" : "text-slate-600"}`}>
-                                  ৳{formatNum(item.amount)}
-                                </span>
-                                {item.payment?.date && (
-                                  <span className="text-[8px] text-slate-400 block font-mono">
-                                    জমা: {formatDate(item.payment.date)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )
-                    ) : userHistory.length === 0 ? (
-                      <p className="text-center py-6 text-xs text-slate-400">কোনো ইতিহাস নেই</p>
-                    ) : (
-                      userHistory.map((h) => {
-                        const isArrears = h.type === "savings_arrears";
-                        const amt = isArrears ? Number(h.arrears || 0) : Number(h.amount || 0);
-
-                        return (
-                          <div
-                            key={h.docId}
-                            className={`p-3 rounded-2xl flex justify-between items-center border-l-4 ${isArrears ? "bg-rose-50/50 border-rose-500" : "bg-slate-50 border-blue-500"}`}
+                    return (
+                      <>
+                        <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-3 shrink-0">
+                          <button
+                            onClick={() => setInvestHistoryTab("schedule")}
+                            className={`flex-1 py-2 text-center text-xs font-bold rounded-xl transition ${
+                              investHistoryTab === "schedule" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-400 hover:text-slate-600"
+                            }`}
                           >
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-[10px] font-bold text-slate-400 font-mono">{formatDate(h.date)}</p>
-                                {isArrears && (
-                                  <span className="text-[8px] bg-rose-100 text-rose-600 font-extrabold px-1.5 py-0.2 rounded-sm">
-                                    বকেয়া
-                                  </span>
-                                )}
-                              </div>
-                              <p className={`text-xs font-semibold mt-0.5 ${isArrears ? "text-rose-700" : "text-slate-600"}`}>
-                                {isArrears ? h.memo : `মেমো: ${h.memo || "N/A"}`}
-                              </p>
-                              {h.document && (
-                                <button
-                                  onClick={() => setReadingDoc({
-                                    name: h.document!.name,
-                                    fileData: h.document!.fileData,
-                                    fileType: h.document!.fileType,
-                                    notes: h.memo || "সংযুক্ত মেমো/ডকুমেন্ট"
-                                  })}
-                                  className="mt-1 flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg font-bold hover:bg-indigo-100 transition cursor-pointer"
-                                >
-                                  <Paperclip className="w-3 h-3 text-indigo-500" />
-                                  মেমো/রশিদ দেখুন
-                                </button>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <p className={`font-extrabold text-xs ${isArrears ? "text-rose-600" : "text-emerald-600"}`}>
-                                ৳{formatNum(amt)}
-                              </p>
-                              {isCompanyOrAdmin && !isArrears && (
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    onClick={() => setEditingInvest({ entry: h, userId: selectedUser.docId })}
-                                    className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded font-bold"
-                                  >
-                                    এডিট
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteInvestHistory(h)}
-                                    className="p-1 bg-rose-50 text-rose-500 rounded hover:bg-rose-100"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                            📅 সেভিংস সিডিউল (Schedule)
+                          </button>
+                          <button
+                            onClick={() => setInvestHistoryTab("history")}
+                            className={`flex-1 py-2 text-center text-xs font-bold rounded-xl transition ${
+                              investHistoryTab === "history" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-400 hover:text-slate-600"
+                            }`}
+                          >
+                            📋 জমার ইতিহাস (History)
+                          </button>
+                        </div>
+
+                        {investHistoryTab === "schedule" ? (
+                          getSavingsScheduleForUser(selectedUser, userHistory).length === 0 ? (
+                            <p className="text-center text-slate-400 text-xs py-6">কোনো সেভিংস সিডিউল পাওয়া যায়নি (সেভিংস এর ধরণ ও তারিখ সঠিক নয়)</p>
+                          ) : (
+                            <div className="divide-y divide-slate-100 space-y-2.5">
+                              {getSavingsScheduleForUser(selectedUser, userHistory).map((item, index) => (
+                                <div key={index} className="flex justify-between items-center py-2.5">
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold text-slate-800">{item.label}</span>
+                                      {item.status === "paid" && (
+                                        <span className="text-[8px] bg-emerald-100 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded-sm">
+                                          পরিশোধিত
+                                        </span>
+                                      )}
+                                      {item.status === "overdue" && (
+                                        <span className="text-[8px] bg-rose-100 text-rose-700 font-extrabold px-1.5 py-0.5 rounded-sm">
+                                          বকেয়া
+                                        </span>
+                                      )}
+                                      {item.status === "upcoming" && (
+                                        <span className="text-[8px] bg-blue-100 text-blue-700 font-extrabold px-1.5 py-0.5 rounded-sm">
+                                          আসন্ন
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[9px] text-slate-400 mt-0.5">
+                                      জমার দিন: প্রতি মাসের {item.dayOfMonth} তারিখ
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className={`text-xs font-bold block ${item.status === "paid" ? "text-emerald-600" : item.status === "overdue" ? "text-rose-600" : "text-slate-600"}`}>
+                                      ৳{formatNum(item.amount)}
+                                    </span>
+                                    {item.payment?.date && (
+                                      <span className="text-[8px] text-slate-400 block font-mono">
+                                        জমা: {formatDate(item.payment.date)}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                              )}
+                              ))}
                             </div>
+                          )
+                        ) : userHistory.length === 0 ? (
+                          <p className="text-center py-6 text-xs text-slate-400">কোনো ইতিহাস নেই</p>
+                        ) : (
+                          userHistory.map((h) => {
+                            const isArrears = h.type === "savings_arrears";
+                            const amt = isArrears ? Number(h.arrears || 0) : Number(h.amount || 0);
+
+                            return (
+                              <div
+                                key={h.docId}
+                                className={`p-3 rounded-2xl flex justify-between items-center border-l-4 ${isArrears ? "bg-rose-50/50 border-rose-500" : "bg-slate-50 border-blue-500"}`}
+                              >
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="text-[10px] font-bold text-slate-400 font-mono">{formatDate(h.date)}</p>
+                                    {isArrears && (
+                                      <span className="text-[8px] bg-rose-100 text-rose-600 font-extrabold px-1.5 py-0.2 rounded-sm">
+                                        বকেয়া
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className={`text-xs font-semibold mt-0.5 ${isArrears ? "text-rose-700" : "text-slate-600"}`}>
+                                    {isArrears ? h.memo : `মেমো: ${h.memo || "N/A"}`}
+                                  </p>
+                                  {h.document && (
+                                    <button
+                                      onClick={() => setReadingDoc({
+                                        name: h.document!.name,
+                                        fileData: h.document!.fileData,
+                                        fileType: h.document!.fileType,
+                                        notes: h.memo || "সংযুক্ত মেমো/ডকুমেন্ট"
+                                      })}
+                                      className="mt-1 flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg font-bold hover:bg-indigo-100 transition cursor-pointer"
+                                    >
+                                      <Paperclip className="w-3 h-3 text-indigo-500" />
+                                      মেমো/রশিদ দেখুন
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <p className={`font-extrabold text-xs ${isArrears ? "text-rose-600" : "text-emerald-600"}`}>
+                                    ৳{formatNum(amt)}
+                                  </p>
+                                  {isCompanyOrAdmin && !isArrears && (
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        onClick={() => setEditingInvest({ entry: h, userId: selectedUser.docId })}
+                                        className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded font-bold"
+                                      >
+                                        এডিট
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteInvestHistory(h)}
+                                        className="p-1 bg-rose-50 text-rose-500 rounded hover:bg-rose-100"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+
+                        {/* Member Quick Savings Deposit Option Block */}
+                        {currentUser.role === "member" && (
+                          <div className="p-4 mt-4 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/60 space-y-3 text-left">
+                            <label className="text-[10px] font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-wider block">💵 সঞ্চয় (Savings) জমা করুন</label>
+                            
+                            <div className="grid grid-cols-3 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSavingsPayOption("monthly");
+                                  setCustomSavingsPayAmount(nextSavingsAmount);
+                                }}
+                                className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                                  savingsPayOption === "monthly"
+                                    ? "bg-indigo-600 border-indigo-600 text-white"
+                                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                }`}
+                              >
+                                <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">১ মাসের কিস্তি</span>
+                                <span className="text-xs font-black">৳{formatNum(nextSavingsAmount)}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSavingsPayOption("arrears");
+                                  setCustomSavingsPayAmount(mySavingsArrears || nextSavingsAmount);
+                                }}
+                                className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                                  savingsPayOption === "arrears"
+                                    ? "bg-indigo-600 border-indigo-600 text-white"
+                                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                }`}
+                              >
+                                <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">মোট বকেয়া</span>
+                                <span className="text-xs font-black">৳{formatNum(mySavingsArrears || 0)}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSavingsPayOption("custom");
+                                  if (customSavingsPayAmount === 0 || customSavingsPayAmount === nextSavingsAmount || customSavingsPayAmount === mySavingsArrears) {
+                                    setCustomSavingsPayAmount(nextSavingsAmount);
+                                  }
+                                }}
+                                className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                                  savingsPayOption === "custom"
+                                    ? "bg-indigo-600 border-indigo-600 text-white"
+                                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                }`}
+                              >
+                                <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">কাস্টম পরিমাণ</span>
+                                <span className="text-xs font-black">৳কাস্টম</span>
+                              </button>
+                            </div>
+
+                            {savingsPayOption === "custom" && (
+                              <div className="space-y-1.5 animate-fadeIn">
+                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">টাকার পরিমাণ টাইপ করুন</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={customSavingsPayAmount || ""}
+                                  onChange={(e) => {
+                                    let val = parseFloat(e.target.value) || 0;
+                                    setCustomSavingsPayAmount(val);
+                                  }}
+                                  placeholder="টাকার পরিমাণ লিখুন"
+                                  className="w-full border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-xs font-bold outline-none bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:border-indigo-500"
+                                />
+                              </div>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const selectedAmt = savingsPayOption === "custom" ? customSavingsPayAmount : (savingsPayOption === "arrears" ? (mySavingsArrears || nextSavingsAmount) : nextSavingsAmount);
+                                if (selectedAmt <= 0) return;
+                                
+                                // Close modal first
+                                setShowHistoryModal(false);
+                                setSelectedUser(null);
+
+                                // Redirect to deposit-withdraw view with the prefilled params!
+                                onNavigate("deposit-withdraw", {
+                                  trxFlow: "IN",
+                                  trxType: "saving",
+                                  selectedUserId: currentUser.docId,
+                                  trxAmount: selectedAmt
+                                });
+                              }}
+                              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200/50 dark:shadow-none cursor-pointer"
+                            >
+                              💸 সঞ্চয় জমা দিন (৳{formatNum(savingsPayOption === "custom" ? customSavingsPayAmount : (savingsPayOption === "arrears" ? (mySavingsArrears || nextSavingsAmount) : nextSavingsAmount))})
+                            </button>
                           </div>
-                        );
-                      })
-                    )}
-                  </>
+                        )}
+                      </>
+                    );
+                  })()
                 )
               ) : selectedProject ? (
                 projectTrxs.length === 0 ? (
@@ -3452,6 +3652,8 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
                 const totalAmt = (selectedInstallment.schedule || []).reduce((sum, s) => sum + Number(s.amount || 0), 0);
                 const totalPaid = (selectedInstallment.schedule || []).reduce((sum, s) => sum + Number(s.paidAmount || 0), 0);
                 const totalRemaining = (selectedInstallment.schedule || []).reduce((sum, s) => sum + Math.max(0, Number(s.amount || 0) - Number(s.paidAmount || 0)), 0);
+                const nextStep = (selectedInstallment.schedule || []).find((s) => s.status !== "paid" && (s.amount - s.paidAmount) > 0);
+                const nextStepAmount = nextStep ? nextStep.amount - nextStep.paidAmount : 0;
 
                 return (
                   <div className="space-y-4">
@@ -3522,6 +3724,107 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
                         </tfoot>
                       </table>
                     </div>
+
+                    {/* Member Payment Options & redirection */}
+                    {!isCompanyOrAdmin && totalRemaining > 0 && (
+                      <div className="p-4 bg-blue-50/50 dark:bg-blue-950/10 rounded-2xl border border-blue-100 dark:border-blue-900/60 space-y-3 text-left">
+                        <label className="text-[10px] font-black text-blue-700 dark:text-blue-400 uppercase tracking-wider block">💵 কিস্তি পরিশোধ করুন</label>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMemberPayOption("monthly");
+                              setCustomPayAmount(nextStepAmount);
+                            }}
+                            className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                              memberPayOption === "monthly"
+                                ? "bg-blue-600 border-blue-600 text-white"
+                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">১ মাসের কিস্তি</span>
+                            <span className="text-xs font-black">৳{formatNum(nextStepAmount)}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMemberPayOption("full");
+                              setCustomPayAmount(totalRemaining);
+                            }}
+                            className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                              memberPayOption === "full"
+                                ? "bg-blue-600 border-blue-600 text-white"
+                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">সম্পূর্ণ বকেয়া</span>
+                            <span className="text-xs font-black">৳{formatNum(totalRemaining)}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMemberPayOption("custom");
+                              if (customPayAmount === 0 || customPayAmount === nextStepAmount || customPayAmount === totalRemaining) {
+                                setCustomPayAmount(nextStepAmount);
+                              }
+                            }}
+                            className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                              memberPayOption === "custom"
+                                ? "bg-blue-600 border-blue-600 text-white"
+                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">কাস্টম পরিমাণ</span>
+                            <span className="text-xs font-black">৳কাস্টম</span>
+                          </button>
+                        </div>
+
+                        {memberPayOption === "custom" && (
+                          <div className="space-y-1.5 animate-fadeIn">
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">টাকার পরিমাণ টাইপ করুন (৳১ - ৳{formatNum(totalRemaining)})</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={totalRemaining}
+                              value={customPayAmount || ""}
+                              onChange={(e) => {
+                                let val = parseFloat(e.target.value) || 0;
+                                if (val > totalRemaining) val = totalRemaining;
+                                setCustomPayAmount(val);
+                              }}
+                              placeholder="টাকার পরিমাণ লিখুন"
+                              className="w-full border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-xs font-bold outline-none bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:border-blue-500"
+                            />
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const selectedAmt = memberPayOption === "custom" ? customPayAmount : (memberPayOption === "full" ? totalRemaining : nextStepAmount);
+                            if (selectedAmt <= 0) return;
+                            
+                            // Close modal first
+                            setSelectedProjectInstallment(null);
+
+                            // Redirect to deposit-withdraw view with the prefilled params!
+                            onNavigate("deposit-withdraw", {
+                              trxFlow: "IN",
+                              trxType: "installment",
+                              selectedUserId: currentUser.docId,
+                              selectedInstallmentId: selectedInstallment.id,
+                              trxAmount: selectedAmt
+                            });
+                          }}
+                          className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md shadow-blue-200/50 dark:shadow-none cursor-pointer"
+                        >
+                          💸 পরিশোধ করুন (৳{formatNum(memberPayOption === "custom" ? customPayAmount : (memberPayOption === "full" ? totalRemaining : nextStepAmount))})
+                        </button>
+                      </div>
+                    )}
 
                     {/* Payment controls */}
                     {selectedInstallment.dueAmount > 0 && isCompanyOrAdmin && (
@@ -4144,36 +4447,135 @@ export default function DashboardView({ currentUser, onNavigate, navigationParam
 
               {/* MY SHARE AND PARTICIPATION CARD (FOR MEMBERS ONLY) */}
               {currentUser.role === "member" && (
-                <div className="bg-indigo-50 border border-indigo-100 p-3.5 rounded-2xl space-y-1.5 text-xs animate-fadeIn">
-                  <h4 className="font-extrabold text-indigo-950 flex items-center gap-1 uppercase tracking-wider text-[11px]">
-                    🎯 আমার অংশীদারি ও লভ্যাংশ বিবরণ
-                  </h4>
-                  <div className="flex justify-between mt-1">
-                    <span className="text-indigo-700 font-medium">আমার শেয়ারঃ</span>
-                    <span className="font-black text-indigo-950">
-                      {(((memberProjectsShare[currentUser.docId] || {})[currentProject.id] || 0) * 100).toFixed(1)}%
-                    </span>
+                <div className="space-y-3">
+                  <div className="bg-indigo-50 border border-indigo-100 p-3.5 rounded-2xl space-y-1.5 text-xs animate-fadeIn">
+                    <h4 className="font-extrabold text-indigo-950 flex items-center gap-1 uppercase tracking-wider text-[11px]">
+                      🎯 আমার অংশীদারি ও লভ্যাংশ বিবরণ
+                    </h4>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-indigo-700 font-medium">আমার শেয়ারঃ</span>
+                      <span className="font-black text-indigo-950">
+                        {(((memberProjectsShare[currentUser.docId] || {})[currentProject.id] || 0) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-indigo-700 font-medium">আমার মোট ইনভেস্টঃ</span>
+                      <span className="font-bold text-indigo-950">
+                        ৳{formatNum(((memberSpecialInvMap[currentUser.docId] || {})[currentProject.id] || 0) + (memberGeneralInv[currentUser.docId] || 0))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-indigo-100/50 pt-1.5 font-bold">
+                      <span className="text-indigo-900">আমার লভ্যাংশ (লাভ/ক্ষতি থেকে)ঃ</span>
+                      {(() => {
+                        const projSale = (projSummary[currentProject.id] || { sale: 0 }).sale;
+                        const projInst = projectInstallmentIncome[currentProject.id] || 0;
+                        const projExp = (projSummary[currentProject.id] || { expense: 0 }).expense;
+                        const projProfit = (projSale + projInst) - projExp;
+                        const myProjProfit = ((memberProjectsShare[currentUser.docId] || {})[currentProject.id] || 0) * projProfit;
+                        return (
+                          <span className={myProjProfit >= 0 ? "text-emerald-600 font-extrabold" : "text-rose-600 font-extrabold"}>
+                            ৳{formatNum(myProjProfit)}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-indigo-700 font-medium">আমার মোট ইনভেস্টঃ</span>
-                    <span className="font-bold text-indigo-950">
-                      ৳{formatNum(((memberSpecialInvMap[currentUser.docId] || {})[currentProject.id] || 0) + (memberGeneralInv[currentUser.docId] || 0))}
-                    </span>
-                  </div>
-                  <div className="flex justify-between border-t border-indigo-100/50 pt-1.5 font-bold">
-                    <span className="text-indigo-900">আমার লভ্যাংশ (লাভ/ক্ষতি থেকে)ঃ</span>
-                    {(() => {
-                      const projSale = (projSummary[currentProject.id] || { sale: 0 }).sale;
-                      const projInst = projectInstallmentIncome[currentProject.id] || 0;
-                      const projExp = (projSummary[currentProject.id] || { expense: 0 }).expense;
-                      const projProfit = (projSale + projInst) - projExp;
-                      const myProjProfit = ((memberProjectsShare[currentUser.docId] || {})[currentProject.id] || 0) * projProfit;
-                      return (
-                        <span className={myProjProfit >= 0 ? "text-emerald-600 font-extrabold" : "text-rose-600 font-extrabold"}>
-                          ৳{formatNum(myProjProfit)}
-                        </span>
-                      );
-                    })()}
+
+                  {/* MEMBER QUICK PROJECT INVESTMENT SECTION */}
+                  <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/60 space-y-3 text-left">
+                    <label className="text-[10px] font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-wider block">💼 প্রজেক্টে ইনভেস্ট করুন</label>
+                    
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectInvestOption("suggested_5k");
+                          setCustomProjectInvestAmount(5000);
+                        }}
+                        className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                          projectInvestOption === "suggested_5k"
+                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">১ম অপশন</span>
+                        <span className="text-xs font-black">৳৫,০০০</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectInvestOption("suggested_10k");
+                          setCustomProjectInvestAmount(10000);
+                        }}
+                        className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                          projectInvestOption === "suggested_10k"
+                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">২য় অপশন</span>
+                        <span className="text-xs font-black">৳১০,০০০</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectInvestOption("custom");
+                          if (customProjectInvestAmount === 5000 || customProjectInvestAmount === 10000) {
+                            setCustomProjectInvestAmount(5000);
+                          }
+                        }}
+                        className={`p-2 rounded-xl border text-center transition active:scale-95 flex flex-col items-center justify-center cursor-pointer ${
+                          projectInvestOption === "custom"
+                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        <span className="text-[8px] font-bold uppercase opacity-80 block mb-0.5">কাস্টম পরিমাণ</span>
+                        <span className="text-xs font-black">৳কাস্টম</span>
+                      </button>
+                    </div>
+
+                    {projectInvestOption === "custom" && (
+                      <div className="space-y-1.5 animate-fadeIn">
+                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">ইনভেস্ট পরিমাণ টাইপ করুন</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={customProjectInvestAmount || ""}
+                          onChange={(e) => {
+                            let val = parseFloat(e.target.value) || 0;
+                            setCustomProjectInvestAmount(val);
+                          }}
+                          placeholder="টাকার পরিমাণ লিখুন"
+                          className="w-full border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-xs font-bold outline-none bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:border-indigo-500"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const selectedAmt = projectInvestOption === "custom" ? customProjectInvestAmount : (projectInvestOption === "suggested_10k" ? 10000 : 5000);
+                        if (selectedAmt <= 0) return;
+                        
+                        // Close modal first
+                        setShowProjectDetails(null);
+
+                        // Redirect to deposit-withdraw view with the prefilled params!
+                        onNavigate("deposit-withdraw", {
+                          trxFlow: "IN",
+                          trxType: "project",
+                          selectedUserId: currentUser.docId,
+                          selectedProjectId: currentProject.id,
+                          trxAmount: selectedAmt
+                        });
+                      }}
+                      className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md shadow-indigo-200/50 dark:shadow-none cursor-pointer"
+                    >
+                      💼 প্রজেক্ট ইনভেস্ট করুন (৳{formatNum(projectInvestOption === "custom" ? customProjectInvestAmount : (projectInvestOption === "suggested_10k" ? 10000 : 5000))})
+                    </button>
                   </div>
                 </div>
               )}

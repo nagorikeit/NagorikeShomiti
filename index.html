@@ -3,11 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>Remix: নগরীক সমিতি</title>
+    <!-- PWA Meta and Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0284c7" />
+    <link rel="apple-touch-icon" href="https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=192&h=192&q=80" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => {
+              console.log('Service Worker registered successfully:', reg.scope);
+            })
+            .catch((err) => {
+              console.error('Service Worker registration failed:', err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
 

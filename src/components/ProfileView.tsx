@@ -51,9 +51,20 @@ interface ProfileViewProps {
   targetId?: string | null;
   onNavigate: (view: string, params?: any) => void;
   totalEntries?: number;
+  subscriptionLimits?: {
+    freeLimit: number;
+    monthlyLimit: number;
+    yearlyLimit: number;
+  };
 }
 
-export default function ProfileView({ currentUser, targetId, onNavigate, totalEntries = 0 }: ProfileViewProps) {
+export default function ProfileView({ 
+  currentUser, 
+  targetId, 
+  onNavigate, 
+  totalEntries = 0,
+  subscriptionLimits = { freeLimit: 50, monthlyLimit: 1000, yearlyLimit: 10000 }
+}: ProfileViewProps) {
   const [loading, setLoading] = useState(true);
   const [targetUser, setTargetUser] = useState<User | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -1029,49 +1040,64 @@ export default function ProfileView({ currentUser, targetId, onNavigate, totalEn
               </div>
             )}
 
-            {/* If Free Plan */}
-            {(!targetUser?.plan || targetUser?.plan === "free") && (
-              <div className="space-y-3">
-                <div className="bg-slate-50 border border-slate-150 p-4 rounded-2xl space-y-3">
-                  <div className="flex justify-between items-center text-[11px] font-bold text-slate-700">
-                    <span>📊 ফ্রি প্ল্যান ব্যবহারের প্রগ্রেস</span>
-                    <span className="font-mono text-xs">
-                      {toBanglaDigitsLocal(totalEntries)} / ৫০ টি এন্ট্রি
-                    </span>
-                  </div>
+            {/* Subscription Progress Section */}
+            {(() => {
+              const currentPlan = targetUser?.plan || "free";
+              const currentLimit = currentPlan === "monthly" 
+                ? subscriptionLimits.monthlyLimit 
+                : currentPlan === "yearly" 
+                ? subscriptionLimits.yearlyLimit 
+                : subscriptionLimits.freeLimit;
+              
+              const planLabel = currentPlan === "monthly" 
+                ? "মাসিক প্রিমিয়াম" 
+                : currentPlan === "yearly" 
+                ? "বাৎসরিক ভিআইপি" 
+                : "ফ্রি প্ল্যান";
 
-                  {/* Progress bar */}
-                  <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        totalEntries >= 45 
-                          ? "bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" 
-                          : totalEntries >= 35 
-                          ? "bg-amber-500" 
-                          : "bg-indigo-600"
-                      }`}
-                      style={{ width: `${Math.min(100, (totalEntries / 50) * 100)}%` }}
-                    />
-                  </div>
+              return (
+                <div className="space-y-3">
+                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-4 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      <span>📊 {planLabel} ব্যবহারের প্রগ্রেস</span>
+                      <span className="font-mono text-xs">
+                        {toBanglaDigitsLocal(totalEntries)} / {toBanglaDigitsLocal(currentLimit)} টি এন্ট্রি
+                      </span>
+                    </div>
 
-                  {totalEntries >= 50 ? (
-                    <p className="text-[10px] text-rose-600 font-bold leading-normal flex items-start gap-1">
-                      <span className="shrink-0">⚠️</span>
-                      আপনার ফ্রি প্ল্যানের ৫০ টি এন্ট্রি সীমা পূর্ণ হয়েছে! নতুন মেম্বার বা ট্রানজেকশন যোগ করতে প্ল্যান আপগ্রেড করুন।
-                    </p>
-                  ) : totalEntries >= 40 ? (
-                    <p className="text-[10px] text-amber-600 font-bold leading-normal flex items-start gap-1">
-                      <span className="shrink-0">⚠️</span>
-                      আপনি সীমার কাছাকাছি আছেন। দ্রুত মেম্বার বা ট্রানজেকশন যোগ করতে প্রিমিয়াম প্ল্যানে আপগ্রেড করুন।
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-slate-400 font-medium leading-normal">
-                      ফ্রি প্ল্যানে সর্বোচ্চ ৫০ টি ডাটা এন্ট্রি (মেম্বার, কিস্তি, ডিপোজিট, ট্রানজেকশন) করতে পারবেন।
-                    </p>
-                  )}
+                    {/* Progress bar */}
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          totalEntries >= currentLimit * 0.9 
+                            ? "bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" 
+                            : totalEntries >= currentLimit * 0.7 
+                            ? "bg-amber-500" 
+                            : "bg-indigo-600"
+                        }`}
+                        style={{ width: `${Math.min(100, (totalEntries / currentLimit) * 100)}%` }}
+                      />
+                    </div>
+
+                    {totalEntries >= currentLimit ? (
+                      <p className="text-[10px] text-rose-600 font-bold leading-normal flex items-start gap-1">
+                        <span className="shrink-0">⚠️</span>
+                        আপনার {planLabel} এর {toBanglaDigitsLocal(currentLimit)} টি এন্ট্রি সীমা পূর্ণ হয়েছে! নতুন মেম্বার বা ট্রানজেকশন যোগ করতে প্ল্যান আপগ্রেড করুন।
+                      </p>
+                    ) : totalEntries >= currentLimit * 0.8 ? (
+                      <p className="text-[10px] text-amber-600 font-bold leading-normal flex items-start gap-1">
+                        <span className="shrink-0">⚠️</span>
+                        আপনি সীমার কাছাকাছি আছেন। দ্রুত মেম্বার বা ট্রানজেকশন যোগ করতে প্রিমিয়াম প্ল্যানে আপগ্রেড করুন।
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 font-medium leading-normal">
+                        {planLabel}-এ সর্বোচ্চ {toBanglaDigitsLocal(currentLimit)} টি ডাটা এন্ট্রি (মেম্বার, কিস্তি, ডিপোজিট, ট্রানজেকশন) করতে পারবেন।
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Pending Activation Request */}
             {targetUser?.planRequested && (

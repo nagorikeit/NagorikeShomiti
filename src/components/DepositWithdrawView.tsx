@@ -8,7 +8,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
-import { User, Installment, CompanyPaymentAccount, TransactionRequest } from "../types";
+import { User, Installment, CompanyPaymentAccount, TransactionRequest, Project } from "../types";
 import {
   TrendingUp,
   TrendingDown,
@@ -31,9 +31,10 @@ import { formatNum } from "../utils/firestore";
 interface DepositWithdrawViewProps {
   currentUser: User;
   onNavigate: (view: string, params?: any) => void;
+  navigationParams?: any;
 }
 
-export default function DepositWithdrawView({ currentUser, onNavigate }: DepositWithdrawViewProps) {
+export default function DepositWithdrawView({ currentUser, onNavigate, navigationParams }: DepositWithdrawViewProps) {
   // Navigation & Basic Details
   const targetCompanyId = currentUser.role === "company" ? currentUser.docId : currentUser.companyId;
   const isAdminOrCompany = currentUser.role === "admin" || currentUser.role === "company";
@@ -41,6 +42,7 @@ export default function DepositWithdrawView({ currentUser, onNavigate }: Deposit
   // Real-time states
   const [users, setUsers] = useState<User[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [companyAccounts, setCompanyAccounts] = useState<CompanyPaymentAccount[]>([]);
   const [companyGateway, setCompanyGateway] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -50,8 +52,9 @@ export default function DepositWithdrawView({ currentUser, onNavigate }: Deposit
   const [selectedUserId, setSelectedUserId] = useState<string>(
     currentUser.role === "member" ? currentUser.docId : ""
   );
-  const [trxType, setTrxType] = useState<"saving" | "installment">("saving");
+  const [trxType, setTrxType] = useState<"saving" | "installment" | "project">("saving");
   const [selectedInstallmentId, setSelectedInstallmentId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [trxAmount, setTrxAmount] = useState<string>("");
   const [trxDate, setTrxDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [paymentMethod, setPaymentMethod] = useState<"mobile_banking" | "bank" | "cash" | "online_gateway">(
@@ -146,11 +149,25 @@ export default function DepositWithdrawView({ currentUser, onNavigate }: Deposit
       });
     }
 
+    // 5. Projects Query
+    const projectsQuery = currentUser.role === "admin"
+      ? collection(db, "projects")
+      : query(collection(db, "projects"), where("companyId", "==", targetCompanyId || ""));
+
+    const unsubProjects = onSnapshot(projectsQuery, (snap) => {
+      const list: Project[] = [];
+      snap.forEach((d) => {
+        list.push({ id: d.id, ...d.data() } as Project);
+      });
+      setProjects(list);
+    });
+
     return () => {
       unsubUsers();
       unsubInstallments();
       unsubCompanyAccounts();
       unsubGateway();
+      unsubProjects();
     };
   }, [currentUser, targetCompanyId]);
 
@@ -170,11 +187,49 @@ export default function DepositWithdrawView({ currentUser, onNavigate }: Deposit
   // Set default installment ID if list changes
   useEffect(() => {
     if (selectedUserInstallments.length > 0) {
-      setSelectedInstallmentId(selectedUserInstallments[0].id);
+      if (!selectedInstallmentId || !selectedUserInstallments.some(inst => inst.id === selectedInstallmentId)) {
+        setSelectedInstallmentId(selectedUserInstallments[0].id);
+      }
     } else {
       setSelectedInstallmentId("");
     }
   }, [selectedUserId, trxType, installments]);
+
+  // Set default project ID if list changes
+  useEffect(() => {
+    const activeProjects = projects.filter(p => p.status !== "closed");
+    if (activeProjects.length > 0) {
+      if (!selectedProjectId || !activeProjects.some(p => p.id === selectedProjectId)) {
+        setSelectedProjectId(activeProjects[0].id);
+      }
+    } else {
+      setSelectedProjectId("");
+    }
+  }, [projects, trxType]);
+
+  // Handle navigation params for quick auto-population (e.g. from Dashboard installment payment button)
+  useEffect(() => {
+    if (navigationParams) {
+      if (navigationParams.trxFlow) {
+        setTrxFlow(navigationParams.trxFlow);
+      }
+      if (navigationParams.trxType) {
+        setTrxType(navigationParams.trxType);
+      }
+      if (navigationParams.selectedUserId) {
+        setSelectedUserId(navigationParams.selectedUserId);
+      }
+      if (navigationParams.selectedInstallmentId) {
+        setSelectedInstallmentId(navigationParams.selectedInstallmentId);
+      }
+      if (navigationParams.selectedProjectId) {
+        setSelectedProjectId(navigationParams.selectedProjectId);
+      }
+      if (navigationParams.trxAmount) {
+        setTrxAmount(String(navigationParams.trxAmount));
+      }
+    }
+  }, [navigationParams]);
 
   const handleFlowToggle = (flow: "IN" | "OUT") => {
     setTrxFlow(flow);
@@ -327,6 +382,8 @@ export default function DepositWithdrawView({ currentUser, onNavigate }: Deposit
             ? "সঞ্চয় থেকে টাকা উত্তোলন (ক্যাশ-আউট)"
             : trxType === "saving"
             ? "সাধারণ সঞ্চয় ডিপোজিট"
+            : trxType === "project"
+            ? `প্রজেক্টে বিনিয়োগ - ${projects.find((p) => p.id === selectedProjectId)?.name || "কোম্পানি (সাধারণ)"}`
             : "কিস্তি পরিশোধ"),
         paymentMethod,
         status: "pending",
@@ -349,6 +406,14 @@ export default function DepositWithdrawView({ currentUser, onNavigate }: Deposit
         const instObj = installments.find((i) => i.id === selectedInstallmentId);
         if (instObj) {
           reqPayload.installmentName = instObj.productName;
+        }
+      }
+
+      if (trxFlow === "IN" && trxType === "project") {
+        reqPayload.projectId = selectedProjectId;
+        const projObj = projects.find((p) => p.id === selectedProjectId);
+        if (projObj) {
+          reqPayload.projectName = projObj.name;
         }
       }
 
@@ -516,8 +581,9 @@ export default function DepositWithdrawView({ currentUser, onNavigate }: Deposit
                     required
                     className="w-full text-xs font-extrabold border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-950/50 transition"
                   >
-                    <option value="saving">সাধারণ সেভিংস / সঞ্চয় জমা</option>
-                    <option value="installment">গ্রাহক কিস্তি পরিশোধ</option>
+                    <option value="saving">সঞ্চয় জমা (ইনভেস্টর / সেভিংস মোড)</option>
+                    <option value="project">প্রজেক্ট বিনিয়োগ (প্রজেক্ট মোড)</option>
+                    <option value="installment">কিস্তি পরিশোধ (কিস্তি মোড)</option>
                   </select>
                 )}
               </div>
@@ -545,7 +611,35 @@ export default function DepositWithdrawView({ currentUser, onNavigate }: Deposit
                 ) : (
                   <div className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
-                    निर्বাচিত সদস্যের কোনো বকেয়া কিস্তি চুক্তি পাওয়া যায়নি। সাধারণ সঞ্চয় জমা করুন।
+                    নির্বাচিত সদস্যের কোনো বকেয়া কিস্তি চুক্তি পাওয়া যায়নি। সাধারণ সঞ্চয় জমা করুন।
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Project Selector dropdown (Cash In + Project only) */}
+            {trxFlow === "IN" && trxType === "project" && (
+              <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-900 rounded-2xl space-y-2">
+                <label className="block text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                  বিনিয়োগের জন্য প্রজেক্ট নির্বাচন করুন
+                </label>
+                {projects.filter(p => p.status !== "closed").length > 0 ? (
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    required
+                    className="w-full text-xs font-extrabold border border-emerald-200 dark:border-emerald-800 rounded-xl px-3 py-2 bg-white dark:bg-slate-950 text-emerald-900 dark:text-emerald-300 outline-none focus:ring-2 focus:ring-emerald-100 dark:focus:ring-emerald-950/50 transition"
+                  >
+                    {projects.filter(p => p.status !== "closed").map((proj) => (
+                      <option key={proj.id} value={proj.id}>
+                        {proj.name} ({proj.duration || "N/A"})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    কোনো সক্রিয় প্রজেক্ট পাওয়া যায়নি। সাধারণ সঞ্চয় জমা করুন।
                   </div>
                 )}
               </div>

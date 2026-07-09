@@ -24,6 +24,7 @@ import {
   Calendar, 
   Building,
   FileSpreadsheet,
+  Download,
   X,
   Plus,
   Coins,
@@ -60,6 +61,7 @@ interface ComputedLedgerItem {
   flow: "IN" | "OUT";
   amount: number;
   projectName: string;
+  status?: "pending" | "approved" | "rejected";
 }
 
 export default function TransactionsView({ currentUser, onNavigate }: TransactionsViewProps) {
@@ -79,6 +81,7 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
   const [filterType, setFilterType] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   // Transaction Modal state
   const [showTrxModal, setShowTrxModal] = useState(false);
@@ -601,6 +604,47 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
           });
         });
       });
+
+      // E. PENDING & REJECTED TRANSACTION REQUESTS (IN / OUT)
+      const userRequests = transactionRequests.filter(
+        (r) => r.userId === member.docId && (r.status === "pending" || r.status === "rejected")
+      );
+
+      userRequests.forEach((r) => {
+        const amt = Number(r.amount || 0);
+        if (amt === 0) return;
+
+        const isWithdraw = r.flow === "OUT" || r.type === "withdraw";
+        const absAmt = Math.abs(amt);
+
+        let typeLabel = r.type === "saving" ? "সঞ্চয় জমা" : r.type === "installment" ? "কিস্তি পরিশোধ" : r.type === "project" ? "প্রজেক্ট বিনিয়োগ" : "লেনদেন";
+        if (isWithdraw) {
+          typeLabel = "টাকা উত্তোলন";
+        }
+
+        let paymentInfo = "";
+        if (r.paymentMethod === "mobile_banking") {
+          paymentInfo = ` [মোবাইল ব্যাংকিং: ${String(r.mobileProvider || "বিকাশ").toUpperCase()}, নম্বর: ${r.mobileAccountNo || "N/A"}, TxID: ${r.mobileTrxId || "N/A"}]`;
+        } else if (r.paymentMethod === "bank") {
+          paymentInfo = ` [ব্যাংক ট্রান্সফার: ${r.bankName || "N/A"}, হিসাব: ${r.bankAccountNo || "N/A"}, TxID: ${r.bankTrxId || "N/A"}]`;
+        } else if (r.paymentMethod === "online_gateway") {
+          paymentInfo = ` [অনлайн গেটওয়ে, TxID: ${r.mobileTrxId || "N/A"}]`;
+        }
+
+        ledger.push({
+          id: r.id,
+          date: r.date || r.createdAt?.split("T")[0] || new Date().toISOString().split("T")[0],
+          userDocId: member.docId,
+          userName: member.name,
+          type: r.type === "saving" ? "saving" : isWithdraw ? "saving_withdraw" : r.type === "project" ? "project_sale" : "installment_income",
+          typeLabel: typeLabel,
+          memo: `${r.memo || "লেনদেন রিকোয়েস্ট"} ${paymentInfo}`,
+          flow: isWithdraw ? "OUT" : "IN",
+          amount: absAmt,
+          projectName: r.projectName || "কোম্পানি (সাধারণ)",
+          status: r.status as "pending" | "rejected"
+        });
+      });
     });
 
     // Sort by date desc (latest first), then by id to ensure stable sort
@@ -722,6 +766,221 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setToastMsg({ text: "পিডিএফ উইন্ডো ওপেন করা সম্ভব হয়নি। পপ-আপ ব্লকার চেক করুন।", type: "error" });
+      return;
+    }
+
+    const companyName = currentUser.companyName || "কোম্পানি";
+    const reportDate = new Date().toLocaleDateString("bn-BD");
+    const dateRangeStr = (dateFrom || dateTo) 
+      ? `তারিখঃ ${dateFrom || "শুরু"} হতে ${dateTo || "আজ"}`
+      : "সকল সময়ের লেনদেন বিবরণী";
+
+    let rowsHtml = filteredLedger.map((item, idx) => `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+        <td style="padding: 10px; font-weight: bold; font-family: monospace;">${item.date}</td>
+        <td style="padding: 10px; font-weight: bold; color: #1e293b;">${item.userName}</td>
+        <td style="padding: 10px;">
+          <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; background-color: ${
+            item.flow === "IN" ? "#ecfdf5" : "#fef2f2"
+          }; color: ${item.flow === "IN" ? "#065f46" : "#991b1b"}; border: 1px solid ${
+            item.flow === "IN" ? "#d1fae5" : "#fee2e2"
+          };">
+            ${item.typeLabel}
+          </span>
+        </td>
+        <td style="padding: 10px; color: #475569;">${item.memo}</td>
+        <td style="padding: 10px; color: #475569;">${item.projectName}</td>
+        <td style="padding: 10px; font-weight: 800; color: ${item.flow === "IN" ? "#059669" : "#dc2626"};">
+          ${item.flow === "IN" ? "জমা (IN)" : "উত্তোলন/খরচ (OUT)"}
+        </td>
+        <td style="padding: 10px; text-align: right; font-weight: bold; color: #0f172a;">৳${formatNum(item.amount)}</td>
+      </tr>
+    `).join("");
+
+    if (filteredLedger.length === 0) {
+      rowsHtml = `<tr><td colspan="7" style="padding: 30px; text-align: center; color: #94a3b8; font-weight: bold;">কোনো লেনদেন রেকর্ড পাওয়া যায়নি</td></tr>`;
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${companyName} - ট্রানজেকশন রিপোর্ট</title>
+          <meta charset="utf-8">
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body {
+              font-family: 'Inter', system-ui, -apple-system, sans-serif;
+              color: #1e293b;
+              margin: 40px;
+              line-height: 1.5;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 2px solid #6366f1;
+              padding-bottom: 15px;
+              margin-bottom: 25px;
+            }
+            .title {
+              font-size: 20px;
+              font-weight: 800;
+              color: #4f46e5;
+              margin: 0;
+            }
+            .subtitle {
+              font-size: 11px;
+              color: #64748b;
+              margin: 3px 0 0 0;
+              font-weight: 600;
+            }
+            .meta-info {
+              text-align: right;
+              font-size: 11px;
+              color: #475569;
+            }
+            .meta-info p {
+              margin: 3px 0;
+              font-weight: 500;
+            }
+            .summary-cards {
+              display: grid;
+              grid-template-cols: repeat(3, 1fr);
+              gap: 15px;
+              margin-bottom: 25px;
+            }
+            .card {
+              border-radius: 12px;
+              padding: 15px;
+              border: 1px solid #e2e8f0;
+            }
+            .card-in {
+              background-color: #f0fdf4;
+              border-color: #bbf7d0;
+            }
+            .card-out {
+              background-color: #fef2f2;
+              border-color: #fecaca;
+            }
+            .card-net {
+              background-color: #f5f3ff;
+              border-color: #ddd6fe;
+            }
+            .card-title {
+              font-size: 9px;
+              text-transform: uppercase;
+              font-weight: 800;
+              letter-spacing: 0.5px;
+              color: #475569;
+              margin: 0;
+            }
+            .card-value {
+              font-size: 18px;
+              font-weight: 800;
+              margin: 5px 0 0 0;
+            }
+            .card-in .card-value { color: #166534; }
+            .card-out .card-value { color: #991b1b; }
+            .card-net .card-value { color: #5b21b6; }
+            
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 30px;
+            }
+            th {
+              background-color: #f8fafc;
+              color: #475569;
+              font-weight: 700;
+              text-align: left;
+              padding: 10px;
+              font-size: 11px;
+              border-bottom: 2px solid #e2e8f0;
+            }
+            td {
+              border-bottom: 1px solid #e2e8f0;
+            }
+            .footer {
+              text-align: center;
+              font-size: 10px;
+              color: #94a3b8;
+              border-top: 1px solid #e2e8f0;
+              padding-top: 15px;
+              margin-top: 40px;
+              font-weight: 500;
+            }
+            @media print {
+              body { margin: 20px; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 class="title">${companyName}</h1>
+              <p class="subtitle">লেনদেন বিবরণী খাতা (Ledger Sheet)</p>
+            </div>
+            <div class="meta-info">
+              <p><strong>রিপোর্ট জেনারেট তারিখঃ</strong> ${reportDate}</p>
+              <p><strong>ফিল্টার সময়সীমাঃ</strong> ${dateRangeStr}</p>
+            </div>
+          </div>
+
+          <div class="summary-cards">
+            <div class="card card-in">
+              <h4 class="card-title">মোট জমা (Total IN)</h4>
+              <p class="card-value">৳${formatNum(totalIn)}</p>
+            </div>
+            <div class="card card-out">
+              <h4 class="card-title">মোট উত্তোলন/খরচ (Total OUT)</h4>
+              <p class="card-value">৳${formatNum(totalOut)}</p>
+            </div>
+            <div class="card card-net">
+              <h4 class="card-title">নিট ব্যালেন্স (Net Active Balance)</h4>
+              <p class="card-value">৳${formatNum(totalIn - totalOut)}</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 12%;">তারিখ (Date)</th>
+                <th style="width: 18%;">সদস্য (Member)</th>
+                <th style="width: 15%;">ধরণ (Type)</th>
+                <th style="width: 25%;">বিবরণ (Description)</th>
+                <th style="width: 15%;">প্রজেক্ট (Project)</th>
+                <th style="width: 15%;">ফ্লো (Flow)</th>
+                <th style="text-align: right; width: 15%;">পরিমাণ (Amount)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>এই রিপোর্টটি ডিজিটাল অ্যাপ্লিকেশন দ্বারা স্বয়ংক্রিয়ভাবে তৈরি করা হয়েছে। পৃষ্ঠা ১/১</p>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const handlePrint = () => {
@@ -1141,6 +1400,42 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
             amount: increment(totalAddedToSavings)
           });
 
+        } else if (req.type === "project") {
+          // Project Investment Payment
+          const historyPayload: any = {
+            amount: req.amount,
+            date: req.date,
+            memo: req.memo || `প্রজেক্ট ইনভেস্টমেন্ট - প্রজেক্ট: ${req.projectName || "কোম্পানি (সাধারণ)"}`,
+            InvestType: member.InvestType || "",
+            accountType: "business",
+            type: "project_investment",
+            flow: "IN",
+            paymentMethod: req.paymentMethod,
+            createdAt: new Date().toISOString(),
+            projectId: req.projectId || "company",
+            projectName: req.projectName || "কোম্পানি (সাধারণ)",
+          };
+
+          if (req.paymentMethod === "mobile_banking" || req.paymentMethod === "online_gateway") {
+            historyPayload.mobileProvider = req.mobileProvider;
+            historyPayload.accountNo = req.mobileAccountNo || "Online Gateway";
+            historyPayload.trxId = req.mobileTrxId;
+          } else {
+            historyPayload.bankName = req.bankName;
+            historyPayload.bankBranch = req.bankBranch;
+            historyPayload.accountNo = req.bankAccountNo;
+            historyPayload.trxId = req.bankTrxId;
+          }
+
+          const historyCol = collection(db, "users", req.userId, "history");
+          await addDoc(historyCol, historyPayload);
+
+          // Update User amount (which is legacy representation of total balance)
+          const userRef = doc(db, "users", req.userId);
+          await updateDoc(userRef, {
+            amount: increment(req.amount)
+          });
+
         } else {
           // Installment Payment
           if (!req.installmentId) {
@@ -1315,29 +1610,6 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
             ব্যাংক বা মোবাইল ব্যাংকিং (বিকাশ/নগদ) ব্যবহার করে সেভিংস বা কিস্তি জমা, উত্তোলন এবং রিয়েল-টাইম হিসাব
           </p>
         </div>
-
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          {activeSubTab !== "submit" && (
-            <button
-              onClick={() => setActiveSubTab("submit")}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer transition active:scale-95"
-            >
-              <Plus className="w-4 h-4" /> লেনদেন করুন
-            </button>
-          )}
-          <button
-            onClick={handleExportCSV}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer transition active:scale-95"
-          >
-            <FileSpreadsheet className="w-4 h-4" /> Export CSV
-          </button>
-          <button
-            onClick={handlePrint}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer transition active:scale-95"
-          >
-            মুদ্রণ
-          </button>
-        </div>
       </div>
 
       {/* Modern Inner Navigation Tabs */}
@@ -1353,57 +1625,50 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
           <FileSpreadsheet className="w-4 h-4" />
           লেনদেন খাতা
         </button>
-        <button
-          onClick={() => {
-            setActiveSubTab("savings");
-            setTrxType("saving");
-            setTrxFlow("IN");
-          }}
-          className={`pb-4 px-2 text-xs sm:text-sm font-black transition-all relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-            activeSubTab === "savings"
-              ? "text-indigo-600 border-b-2 border-indigo-600"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Coins className="w-4 h-4" />
-          মেম্বার সেভিংস (সঞ্চয় জমা/উত্তোলন)
-          {transactionRequests.filter(r => r.status === "pending" && (r.type === "saving" || r.type === "withdraw") && (isAdminOrCompany ? true : r.userId === currentUser.docId)).length > 0 && (
-            <span className="bg-amber-100 text-amber-800 text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1">
-              {transactionRequests.filter(r => r.status === "pending" && (r.type === "saving" || r.type === "withdraw") && (isAdminOrCompany ? true : r.userId === currentUser.docId)).length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => {
-            setActiveSubTab("installments");
-            setTrxType("installment");
-            setTrxFlow("IN");
-          }}
-          className={`pb-4 px-2 text-xs sm:text-sm font-black transition-all relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-            activeSubTab === "installments"
-              ? "text-indigo-600 border-b-2 border-indigo-600"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          বকেয়া কিস্তি পরিশোধ রিকোয়েস্ট
-          {transactionRequests.filter(r => r.status === "pending" && r.type === "installment" && (isAdminOrCompany ? true : r.userId === currentUser.docId)).length > 0 && (
-            <span className="bg-rose-100 text-rose-800 text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1 font-mono">
-              {transactionRequests.filter(r => r.status === "pending" && r.type === "installment" && (isAdminOrCompany ? true : r.userId === currentUser.docId)).length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveSubTab("settings")}
-          className={`pb-4 px-2 text-xs sm:text-sm font-black transition-all relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-            activeSubTab === "settings"
-              ? "text-indigo-600 border-b-2 border-indigo-600"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <Settings className="w-4 h-4" />
-          {isAdminOrCompany ? "লেনদেন সেটিংস" : "কোম্পানি পেমেন্ট একাউন্টস"}
-        </button>
+        {currentUser.role !== "member" && (
+          <>
+            <button
+              onClick={() => {
+                setActiveSubTab("savings");
+                setTrxType("saving");
+                setTrxFlow("IN");
+              }}
+              className={`pb-4 px-2 text-xs sm:text-sm font-black transition-all relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSubTab === "savings"
+                  ? "text-indigo-600 border-b-2 border-indigo-600"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <Coins className="w-4 h-4" />
+              মেম্বার সেভিংস (সঞ্চয় জমা/উত্তোলন)
+              {transactionRequests.filter(r => r.status === "pending" && (r.type === "saving" || r.type === "withdraw") && (isAdminOrCompany ? true : r.userId === currentUser.docId)).length > 0 && (
+                <span className="bg-amber-100 text-amber-800 text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1">
+                  {transactionRequests.filter(r => r.status === "pending" && (r.type === "saving" || r.type === "withdraw") && (isAdminOrCompany ? true : r.userId === currentUser.docId)).length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setActiveSubTab("installments");
+                setTrxType("installment");
+                setTrxFlow("IN");
+              }}
+              className={`pb-4 px-2 text-xs sm:text-sm font-black transition-all relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSubTab === "installments"
+                  ? "text-indigo-600 border-b-2 border-indigo-600"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              বকেয়া কিস্তি পরিশোধ রিকোয়েস্ট
+              {transactionRequests.filter(r => r.status === "pending" && r.type === "installment" && (isAdminOrCompany ? true : r.userId === currentUser.docId)).length > 0 && (
+                <span className="bg-rose-100 text-rose-800 text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1 font-mono">
+                  {transactionRequests.filter(r => r.status === "pending" && r.type === "installment" && (isAdminOrCompany ? true : r.userId === currentUser.docId)).length}
+                </span>
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       {loading ? (
@@ -1694,117 +1959,198 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
 
           {activeSubTab === "ledger" && (
             <>
-              {/* Filtering Control Panel */}
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-xs font-extrabold text-slate-700 tracking-wider uppercase flex items-center gap-2">
-                <Filter className="w-4 h-4 text-slate-400" />
-                লেনদেন ফিল্টারিং ও অনুসন্ধান
-              </h3>
-              <button
-                onClick={resetFilters}
-                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 px-2.5 py-1 rounded-lg hover:underline cursor-pointer"
-              >
-                ফিল্টার রিসেট
-              </button>
-            </div>
+              {/* COMPACT & SMART FILTERING CONTROL CENTER */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-3.5 sm:p-5 space-y-3">
+                <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+                  
+                  {/* Search and Toggle Filters */}
+                  <div className="flex flex-1 flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                    {/* Search input */}
+                    <div className="relative flex-1">
+                      <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-4 w-4 text-slate-400" />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="সদস্য নাম, বিবরণ, মোবাইল নম্বর, ট্রানজেকশন আইডি বা প্রজেক্ট দিয়ে খুঁজুন..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full text-xs font-bold pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
+                      />
+                    </div>
 
-            {/* Grid of filtering dropdowns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-              {/* Member filter (Admin/Company only) */}
-              {isAdminOrCompany ? (
-                <div>
-                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">সদস্য নির্বাচন</label>
-                  <select
-                    value={filterUser}
-                    onChange={(e) => setFilterUser(e.target.value)}
-                    className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
-                  >
-                    <option value="all">সকল সদস্য (All Members)</option>
-                    {activeCompanyMembers.map((member) => (
-                      <option key={member.docId} value={member.docId}>
-                        {member.name} ({member.accountType === "saving" ? "সঞ্চয়ী" : "বিজনেস"})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">সদস্য</label>
-                  <div className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-100 text-slate-500 flex items-center gap-1.5">
-                    <UserIcon className="w-3.5 h-3.5" />
-                    {currentUser.name} (আপনি)
+                    {/* Filter Toggle Button */}
+                    <button
+                      onClick={() => setShowFilters(!showFilters)}
+                      className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black border transition cursor-pointer active:scale-95 ${
+                        showFilters || (filterUser !== "all" || filterFlow !== "all" || filterType !== "all" || dateFrom || dateTo)
+                          ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Filter className="w-3.5 h-3.5" />
+                      <span>ফিল্টার</span>
+                      {(filterUser !== "all" ? 1 : 0) + (filterFlow !== "all" ? 1 : 0) + (filterType !== "all" ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) > 0 && (
+                        <span className="bg-indigo-600 text-white text-[9px] font-mono px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                          {(filterUser !== "all" ? 1 : 0) + (filterFlow !== "all" ? 1 : 0) + (filterType !== "all" ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Smart Actions & Exports */}
+                  <div className="flex items-center justify-end gap-2 border-t md:border-t-0 border-slate-100 pt-2 md:pt-0">
+                    {(filterUser !== "all" || filterFlow !== "all" || filterType !== "all" || dateFrom || dateTo) && (
+                      <button
+                        onClick={resetFilters}
+                        className="text-[11px] font-black text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl transition cursor-pointer"
+                      >
+                        রিসেট
+                      </button>
+                    )}
+
+                    {/* PDF Download Button */}
+                    <button
+                      onClick={handleExportPDF}
+                      title="পিডিএফ বা মুদ্রণ"
+                      className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-sm cursor-pointer transition active:scale-95 flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>PDF</span>
+                    </button>
+
+                    {/* CSV Export Button */}
+                    <button
+                      onClick={handleExportCSV}
+                      title="CSV ডাউনলোড"
+                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm cursor-pointer transition active:scale-95 flex items-center gap-1.5"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>CSV</span>
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {/* Flow filter */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">লেনদেনের ধরণ (Flow)</label>
-                <select
-                  value={filterFlow}
-                  onChange={(e) => setFilterFlow(e.target.value as any)}
-                  className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
-                >
-                  <option value="all">সব ফ্লো (All In/Out)</option>
-                  <option value="IN">শুধুমাত্র ইন (IN / জমা)</option>
-                  <option value="OUT">শুধুমাত্র আউট (OUT / খরচ ও উত্তোলন)</option>
-                </select>
+                {/* Collapsible Smart Filter panel */}
+                {showFilters && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-3 border-t border-slate-100 animate-fadeIn">
+                    {/* Member selection (Admin/Company only) */}
+                    {isAdminOrCompany ? (
+                      <div>
+                        <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">সদস্য নির্বাচন</label>
+                        <select
+                          value={filterUser}
+                          onChange={(e) => setFilterUser(e.target.value)}
+                          className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
+                        >
+                          <option value="all">সকল সদস্য (All Members)</option>
+                          {activeCompanyMembers.map((member) => (
+                            <option key={member.docId} value={member.docId}>
+                              {member.name} ({member.accountType === "saving" ? "সঞ্চয়ী" : "বিজনেস"})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">সদস্য</label>
+                        <div className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-100 text-slate-500 flex items-center gap-1.5">
+                          <UserIcon className="w-3.5 h-3.5" />
+                          {currentUser.name}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Flow Selection */}
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">লেনদেনের ধরণ (Flow)</label>
+                      <select
+                        value={filterFlow}
+                        onChange={(e) => setFilterFlow(e.target.value as any)}
+                        className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
+                      >
+                        <option value="all">সব ফ্লো (All In/Out)</option>
+                        <option value="IN">শুধুমাত্র ইন (IN / জমা)</option>
+                        <option value="OUT">শুধুমাত্র আউট (OUT / খরচ ও উত্তোলন)</option>
+                      </select>
+                    </div>
+
+                    {/* Category Selection */}
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">ক্যাটাগরি</label>
+                      <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                        className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
+                      >
+                        <option value="all">সব ক্যাটাগরি</option>
+                        <option value="saving">সঞ্চয় জমা ও উত্তোলন</option>
+                        <option value="project_expense">শেয়ার প্রজেক্ট খরচ</option>
+                        <option value="project_sale">শেয়ার বিক্রয় আয়</option>
+                        <option value="installment_income">শেয়ার কিস্তি আদায়</option>
+                      </select>
+                    </div>
+
+                    {/* Date From */}
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">তারিখ হতে (From)</label>
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
+                      />
+                    </div>
+
+                    {/* Date To */}
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">তারিখ পর্যন্ত (To)</label>
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Active Filter Badges */}
+                {(filterUser !== "all" || filterFlow !== "all" || filterType !== "all" || dateFrom || dateTo) && (
+                  <div className="flex flex-wrap gap-1.5 pt-2 items-center">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">সক্রিয় ফিল্টারঃ</span>
+                    
+                    {filterUser !== "all" && (
+                      <span className="inline-flex items-center gap-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
+                        <span>সদস্য: {users.find(u => u.docId === filterUser)?.name || "N/A"}</span>
+                        <X className="w-3 h-3 cursor-pointer text-indigo-400 hover:text-indigo-600" onClick={() => setFilterUser("all")} />
+                      </span>
+                    )}
+
+                    {filterFlow !== "all" && (
+                      <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
+                        <span>ফ্লো: {filterFlow === "IN" ? "জমা (IN)" : "উত্তোলন (OUT)"}</span>
+                        <X className="w-3 h-3 cursor-pointer text-emerald-400 hover:text-emerald-600" onClick={() => setFilterFlow("all")} />
+                      </span>
+                    )}
+
+                    {filterType !== "all" && (
+                      <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-700 text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
+                        <span>ক্যাটাগরি: {filterType === "saving" ? "সঞ্চয়" : filterType === "project_expense" ? "প্রজেক্ট খরচ" : filterType === "project_sale" ? "বিক্রয়" : "কিস্তি আদায়"}</span>
+                        <X className="w-3 h-3 cursor-pointer text-amber-400 hover:text-amber-600" onClick={() => setFilterType("all")} />
+                      </span>
+                    )}
+
+                    {(dateFrom || dateTo) && (
+                      <span className="inline-flex items-center gap-1 bg-purple-50 border border-purple-100 text-purple-700 text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
+                        <Calendar className="w-3 h-3 text-purple-400" />
+                        <span>{dateFrom || "শুরু"} ➔ {dateTo || "আজ"}</span>
+                        <X className="w-3 h-3 cursor-pointer text-purple-400 hover:text-purple-600" onClick={() => { setDateFrom(""); setDateTo(""); }} />
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-
-              {/* Category filter */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">ক্যাটাগরি</label>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
-                >
-                  <option value="all">সব ক্যাটাগরি</option>
-                  <option value="saving">সঞ্চয় জমা ও উত্তোলন</option>
-                  <option value="project_expense">শেয়ার প্রজেক্ট খরচ</option>
-                  <option value="project_sale">শেয়ার বিক্রয় আয়</option>
-                  <option value="installment_income">শেয়ার কিস্তি আদায়</option>
-                </select>
-              </div>
-
-              {/* Date From */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">তারিখ হতে (From)</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
-                />
-              </div>
-
-              {/* Date To */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">তারিখ পর্যন্ত (To)</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
-                />
-              </div>
-            </div>
-          </div>
-
-            {/* Search Input bar */}
-            <div className="relative pt-1">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none mt-1">
-                <Search className="h-4 w-4 text-slate-400" />
-              </span>
-              <input
-                type="text"
-                placeholder="সদস্য নাম, বিবরণ, মোবাইল নম্বর, ট্রানজেকশন আইডি বা প্রজেক্ট দিয়ে খুঁজুন..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full text-xs font-bold pl-10 pr-4 py-3 border border-slate-200 rounded-2xl bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 focus:bg-white transition"
-              />
-            </div>
 
             {/* Ledger Transactions List/Table */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1840,19 +2186,31 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
                           <td className="px-5 py-3.5 whitespace-nowrap text-slate-700 font-mono">{item.date}</td>
                           <td className="px-4 py-3.5 whitespace-nowrap text-slate-800 font-extrabold">{item.userName}</td>
                           <td className="px-4 py-3.5 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
-                              item.type === "saving" 
-                                ? "bg-indigo-50 text-indigo-700 border border-indigo-100/40" 
-                                : item.type === "saving_withdraw"
-                                ? "bg-rose-50 text-rose-700 border border-rose-100/40"
-                                : item.type === "project_expense"
-                                ? "bg-amber-50 text-amber-700 border border-amber-100/40"
-                                : item.type === "project_sale"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-100/40"
-                                : "bg-purple-50 text-purple-700 border border-purple-100/40"
-                            }`}>
-                              {item.typeLabel}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`inline-flex px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                                item.type === "saving" 
+                                  ? "bg-indigo-50 text-indigo-700 border border-indigo-100/40" 
+                                  : item.type === "saving_withdraw"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-100/40"
+                                  : item.type === "project_expense"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-100/40"
+                                  : item.type === "project_sale"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-100/40"
+                                  : "bg-purple-50 text-purple-700 border border-purple-100/40"
+                              }`}>
+                                {item.typeLabel}
+                              </span>
+                              {item.status === "pending" && (
+                                <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-black bg-amber-100 text-amber-800 uppercase animate-pulse border border-amber-200">
+                                  পেন্ডিং
+                                </span>
+                              )}
+                              {item.status === "rejected" && (
+                                <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-100 text-rose-800 uppercase border border-rose-200">
+                                  প্রত্যাখ্যাত
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3.5 min-w-[200px] max-w-xs text-slate-500 leading-normal font-medium">{item.memo}</td>
                           <td className="px-4 py-3.5 whitespace-nowrap text-slate-500">{item.projectName}</td>

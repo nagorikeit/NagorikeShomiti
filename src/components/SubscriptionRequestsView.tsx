@@ -32,9 +32,18 @@ import {
 interface SubscriptionRequestsViewProps {
   currentUser: User;
   onNavigate: (view: string, params?: any) => void;
+  subscriptionLimits?: {
+    freeLimit: number;
+    monthlyLimit: number;
+    yearlyLimit: number;
+  };
 }
 
-export default function SubscriptionRequestsView({ currentUser, onNavigate }: SubscriptionRequestsViewProps) {
+export default function SubscriptionRequestsView({ 
+  currentUser, 
+  onNavigate,
+  subscriptionLimits = { freeLimit: 50, monthlyLimit: 1000, yearlyLimit: 10000 }
+}: SubscriptionRequestsViewProps) {
   const [companies, setCompanies] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -47,6 +56,39 @@ export default function SubscriptionRequestsView({ currentUser, onNavigate }: Su
   const [paymentTxId, setPaymentTxId] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [submittingReq, setSubmittingReq] = useState(false);
+
+  // Cancelling premium subscription
+  const [cancellingSubscription, setCancellingSubscription] = useState(false);
+
+  const handleCancelSubscription = async () => {
+    const confirmCancel = window.confirm("আপনি কি নিশ্চিতভাবে আপনার প্রিমিয়াম সাবস্ক্রিপশনটি বাতিল করে ফ্রি প্ল্যানে ফিরে যেতে চান? এর ফলে আপনার ডাটা এন্ট্রি সীমা সীমিত হয়ে যাবে।");
+    if (!confirmCancel) return;
+
+    setCancellingSubscription(true);
+    try {
+      await updateDoc(doc(db, "users", currentUser.docId), {
+        plan: "free",
+        planActiveUntil: null,
+        planRequested: null
+      });
+
+      // Log activity
+      await addDoc(collection(db, "activity_logs"), {
+        userId: currentUser.docId,
+        userName: currentUser.name,
+        action: "SUBSCRIPTION_CANCELLED",
+        details: `${currentUser.plan === "monthly" ? "মাসিক" : "বাৎসরিক"} সাবস্ক্রিপশন বাতিল করে ফ্রি প্ল্যানে ডাউনগ্রেড করা হয়েছে।`,
+        timestamp: Date.now()
+      });
+
+      showToast("✅ সাবস্ক্রিপশন বাতিল হয়েছে এবং ফ্রি প্ল্যানে ডাউনগ্রেড করা হয়েছে!", "success");
+    } catch (err: any) {
+      console.error("Error cancelling subscription:", err);
+      showToast("❌ সাবস্ক্রিপশন বাতিল করতে সমস্যা হয়েছে: " + err.message, "error");
+    } finally {
+      setCancellingSubscription(false);
+    }
+  };
 
   // Admin Gateway settings & checkout states
   const [adminGateway, setAdminGateway] = useState<any>(null);
@@ -421,6 +463,52 @@ export default function SubscriptionRequestsView({ currentUser, onNavigate }: Su
         
         {/* Left/Middle Column: Lists / Forms */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* Active Subscription & Cancellation Details */}
+          {!isAdmin && currentUser.plan && currentUser.plan !== "free" && (
+            <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white border border-indigo-900 rounded-3xl p-5.5 space-y-4 shadow-md animate-fadeIn font-sans">
+              <div className="flex justify-between items-start gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-indigo-800/50 text-amber-400 rounded-2xl border border-indigo-700 shrink-0">
+                    <Crown className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-[10px] font-black tracking-wider uppercase text-indigo-300">আপনার বর্তমান সক্রিয় সাবস্ক্রিপশন</h3>
+                    <p className="text-sm font-black text-white mt-1 flex items-center gap-1.5">
+                      {currentUser.plan === "monthly" ? "মাসিক প্রিমিয়াম সাবস্ক্রিপশন" : "বাৎসরিক ভিআইপি সাবস্ক্রিপশন"}
+                      <span className="bg-emerald-500/20 text-emerald-300 text-[8px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">সক্রিয়</span>
+                    </p>
+                    {currentUser.planActiveUntil && (
+                      <p className="text-[10px] text-indigo-200 mt-1 font-semibold">
+                        মেয়াদ শেষ হবেঃ {new Date(currentUser.planActiveUntil).toLocaleDateString("bn-BD", { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-indigo-800/40 pt-4.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="max-w-md">
+                  <p className="text-[10px] text-indigo-200 font-bold leading-normal">
+                    সাবস্ক্রিপশন বাতিল করতে চান? বাতিল করলে আপনার অ্যাকাউন্টটি অবিলম্বে ফ্রি প্ল্যানে স্থানান্তরিত হয়ে যাবে এবং আপনার ডাটা এন্ট্রি সীমা সীমিত হয়ে যাবে।
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelSubscription}
+                  disabled={cancellingSubscription}
+                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-800 text-white rounded-xl text-[10px] font-black tracking-wide transition shrink-0 cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-rose-950/40"
+                >
+                  {cancellingSubscription ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <XCircle className="w-3.5 h-3.5" />
+                  )}
+                  সাবস্ক্রিপশন বাতিল করুন
+                </button>
+              </div>
+            </div>
+          )}
           
           {/* Company Plan Request Box (Visible to non-admins) */}
           {!isAdmin && (
@@ -806,42 +894,111 @@ export default function SubscriptionRequestsView({ currentUser, onNavigate }: Su
         {/* Right Column: Pricing & Central Payment Channels */}
         <div className="space-y-6">
           
-          {/* Pricing Guidelines */}
-          <div className="bg-gradient-to-b from-indigo-900 to-slate-900 text-white rounded-3xl p-5.5 space-y-4 shadow-xl border border-indigo-950">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-indigo-300 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
-              সাবস্ক্রিপশন চার্জ ও ডিল
-            </h3>
-
-            <div className="space-y-3.5 text-xs">
-              <div className="flex justify-between border-b border-indigo-950 pb-2">
-                <span className="font-semibold text-indigo-200">১। ১ মাস (মাসিক প্ল্যান)</span>
-                <span className="font-extrabold text-white">৳ ৫০০</span>
-              </div>
-              <div className="flex justify-between border-b border-indigo-950 pb-2">
-                <span className="font-semibold text-indigo-200">২। ১২ মাস (বাৎসরিক প্ল্যান)</span>
-                <span className="font-extrabold text-white flex items-center gap-1">
-                  ৳ ৫,০০০
-                  <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.1 rounded-md uppercase">সাশ্রয়ী</span>
-                </span>
-              </div>
-              <div className="flex justify-between pb-1">
-                <span className="font-semibold text-indigo-200">৩। আনলিমিটেড মেম্বার খাতা</span>
-                <span className="font-extrabold text-emerald-400">সীমাহীন</span>
-              </div>
+          {/* Detailed Plans & Benefits Comparison Card */}
+          <div className="bg-gradient-to-b from-slate-900 to-indigo-950 text-white rounded-3xl p-5 sm:p-6 space-y-5 shadow-xl border border-indigo-950 font-sans animate-fadeIn">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-indigo-300 flex items-center gap-1.5 mb-1.5">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                প্যাকেজ তুলনা ও সুবিধাসমূহ
+              </h3>
+              <p className="text-[10px] text-slate-300 leading-normal">
+                আপনার প্রয়োজন অনুযায়ী পারফেক্ট সাবস্ক্রিপশন প্ল্যান বেছে নিন।
+              </p>
             </div>
 
-            <hr className="border-indigo-950" />
+            <div className="space-y-4 text-xs font-semibold">
+              {/* Free Plan Benefits Row */}
+              <div className="bg-slate-950/45 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <span className="font-black text-indigo-300 text-xs">১. ফ্রি প্ল্যান (Free Plan)</span>
+                  <span className="font-black text-emerald-400 text-xs">চিরকাল ফ্রি (৳০)</span>
+                </div>
+                <div className="text-[10px] text-slate-300 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-500 font-bold">▪</span> 
+                    <span>এন্ট্রি লিমিট: <b>{subscriptionLimits?.freeLimit ?? 50} টি</b> সর্বোচ্চ রেকর্ড</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-500">✔</span> 
+                    <span>বেসিক মেম্বার ও খাতা ট্র্যাকিং</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-500">✔</span> 
+                    <span>ম্যানুয়াল হিসাব সংরক্ষণ</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-rose-400">✖</span> 
+                    <span className="text-slate-400">অনলাইন অটোমেটিক গেটওয়ে নেই</span>
+                  </div>
+                </div>
+              </div>
 
-            <div className="text-[10px] text-indigo-200 font-bold leading-normal space-y-2 bg-indigo-950/40 p-3.5 rounded-2xl border border-indigo-900">
-              <p>📍 প্রিমিয়াম প্যাকেজের সুবিধা সমূহঃ</p>
-              <ul className="list-disc list-inside space-y-1 pl-1 text-[9.5px]">
-                <li>সম্পূর্ণ বিজ্ঞাপনমুক্ত ঝকঝকে অভিজ্ঞতা</li>
-                <li>আনলিমিটেড মেম্বার বা সোসাইটি খাতা পরিচালনা</li>
-                <li>মোবাইল ব্যাংকিং ও ব্যাংক রিকোয়েস্ট ভেরিফিকেশন</li>
-                <li>রিয়েল-টাইম হিসাব বিবরণী ও ডায়াগনস্টিক সিঙ্ক</li>
-                <li>অটোমেটিক নোটিফিকেশন ও পিডিএফ রিপোর্ট ডাউনলোড</li>
-              </ul>
+              {/* Monthly Premium Benefits Row */}
+              <div className="bg-amber-950/20 p-4 rounded-2xl border border-amber-900/40 space-y-2">
+                <div className="flex justify-between items-center border-b border-amber-900/30 pb-2">
+                  <span className="font-black text-amber-400 text-xs flex items-center gap-1">
+                    <Crown className="w-3.5 h-3.5 text-amber-400" />
+                    ২. মাসিক প্রিমিয়াম (Monthly)
+                  </span>
+                  <span className="font-black text-amber-400 text-xs">৳ ৫০০ / মাস</span>
+                </div>
+                <div className="text-[10px] text-slate-200 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-400 font-bold">▪</span> 
+                    <span>এন্ট্রি লিমিট: <b>{subscriptionLimits?.monthlyLimit ?? 1000} টি</b> রেকর্ড</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-400">✔</span> 
+                    <span>বিজ্ঞাপনমুক্ত প্রিমিয়াম ইন্টারফেস</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-400">✔</span> 
+                    <span>অনলাইন পেমেন্ট গেটওয়ে সাপোর্ট</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-400">✔</span> 
+                    <span>রিয়েল-টাইম হিসাব বিবরণী ও অটো ব্যাকআপ</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-400">✔</span> 
+                    <span>২৪/৭ অগ্রাধিকার চ্যাট সাপোর্ট</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Yearly VIP Benefits Row */}
+              <div className="bg-indigo-950/50 p-4 rounded-2xl border border-indigo-900/60 space-y-2 relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-rose-600 text-white text-[7px] px-1.5 py-0.5 rounded-bl font-black uppercase">১৬% সাশ্রয়</div>
+                <div className="flex justify-between items-center border-b border-indigo-900/40 pb-2">
+                  <span className="font-black text-indigo-300 text-xs flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-300 animate-spin-slow" />
+                    ৩. বাৎসরিক ভিআইপি (Yearly)
+                  </span>
+                  <span className="font-black text-indigo-300 text-xs">৳ ৫,০০০ / বছর</span>
+                </div>
+                <div className="text-[10px] text-slate-200 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-indigo-400 font-bold">▪</span> 
+                    <span>এন্ট্রি লিমিট: <b>{subscriptionLimits?.yearlyLimit ?? 10000} টি</b> রেকর্ড</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-indigo-300">✔</span> 
+                    <span>মাসিক প্ল্যানের সকল সুবিধা সমূহ</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-indigo-300">✔</span> 
+                    <span>ডেডিকেটেড অ্যাকাউন্ট ম্যানেজার</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-indigo-300">✔</span> 
+                    <span>পিডিএফ ও লেজার স্টেটমেন্ট প্রিন্ট সাপোর্ট</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-indigo-300">✔</span> 
+                    <span>১০০% জিরো ডাউনটাইম গ্যারান্টি</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -30,6 +30,11 @@ interface SettingsViewProps {
   setLanguage: (lang: "bn" | "en") => void;
   theme: "light" | "dark";
   setTheme: (theme: "light" | "dark") => void;
+  subscriptionLimits?: {
+    freeLimit: number;
+    monthlyLimit: number;
+    yearlyLimit: number;
+  };
 }
 
 export default function SettingsView({ 
@@ -38,9 +43,24 @@ export default function SettingsView({
   language,
   setLanguage,
   theme,
-  setTheme
+  setTheme,
+  subscriptionLimits
 }: SettingsViewProps) {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  
+  // Subscription Limit States (Admin configures)
+  const [freeLimit, setFreeLimit] = useState(subscriptionLimits?.freeLimit ?? 50);
+  const [monthlyLimit, setMonthlyLimit] = useState(subscriptionLimits?.monthlyLimit ?? 1000);
+  const [yearlyLimit, setYearlyLimit] = useState(subscriptionLimits?.yearlyLimit ?? 10000);
+  const [savingLimits, setSavingLimits] = useState(false);
+
+  useEffect(() => {
+    if (subscriptionLimits) {
+      setFreeLimit(subscriptionLimits.freeLimit);
+      setMonthlyLimit(subscriptionLimits.monthlyLimit);
+      setYearlyLimit(subscriptionLimits.yearlyLimit);
+    }
+  }, [subscriptionLimits]);
   
   // Password change states
   const [newPass, setNewPass] = useState("");
@@ -135,6 +155,37 @@ export default function SettingsView({
       showToast("❌ সেভ করতে ব্যর্থ: " + err.message, "error");
     } finally {
       setSavingGateway(false);
+    }
+  };
+
+  const handleSaveLimits = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || currentUser.role !== "admin") return;
+    setSavingLimits(true);
+    try {
+      const limitsRef = doc(db, "settings", "subscription_limits");
+      await setDoc(limitsRef, {
+        freeLimit: Number(freeLimit),
+        monthlyLimit: Number(monthlyLimit),
+        yearlyLimit: Number(yearlyLimit),
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser.name
+      }, { merge: true });
+
+      // Log to activity
+      await addDoc(collection(db, "activity_logs"), {
+        userId: currentUser.docId,
+        userName: currentUser.name,
+        action: "SUBSCRIPTION_LIMITS_UPDATED",
+        details: `সাবস্ক্রিপশন এন্ট্রি লিমিট আপডেট করা হয়েছে (ফ্রিঃ ${freeLimit}, মাসিকঃ ${monthlyLimit}, বাৎসরিকঃ ${yearlyLimit})`,
+        timestamp: serverTimestamp()
+      });
+
+      showToast("✅ সাবস্ক্রিপশন এন্ট্রি লিমিট সফলভাবে সেভ করা হয়েছে!");
+    } catch (err: any) {
+      showToast("❌ সেভ করতে ব্যর্থ: " + err.message, "error");
+    } finally {
+      setSavingLimits(false);
     }
   };
 
@@ -410,6 +461,76 @@ export default function SettingsView({
             </button>
           </form>
         </div>
+
+        {/* Section 2.3: Subscription Entry Limit Configuration (Admin Only) */}
+        {isAdmin && (
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-gradient-to-r from-indigo-50 to-amber-50 text-indigo-600 shrink-0 rounded-2xl border border-indigo-100">
+                <Settings className="w-5 h-5 text-indigo-600 animate-spin-slow" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xs font-extrabold text-slate-800">📊 সাবস্ক্রিপশন এন্ট্রি লিমিট সেটিংস (Subscription Limits)</h3>
+                <p className="text-[10px] text-slate-400 leading-normal mt-0.5">
+                  প্রতিটি সাবস্ক্রিপশন প্ল্যানের জন্য সর্বোচ্চ রেকর্ড এন্ট্রি সীমা (মেম্বার, কিস্তি, ট্রানজেকশন, ইত্যাদি) নির্ধারণ করুন।
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveLimits} className="space-y-4 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">১. ফ্রি প্ল্যান লিমিট (Free Plan)</label>
+                  <input
+                    type="number"
+                    value={freeLimit}
+                    onChange={(e) => setFreeLimit(Number(e.target.value))}
+                    className="w-full text-xs font-extrabold border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 outline-none focus:bg-white focus:border-indigo-500"
+                    placeholder="যেমন: ৫০"
+                    required
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">২. মাসিক প্রিমিয়াম লিমিট (Monthly)</label>
+                  <input
+                    type="number"
+                    value={monthlyLimit}
+                    onChange={(e) => setMonthlyLimit(Number(e.target.value))}
+                    className="w-full text-xs font-extrabold border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 outline-none focus:bg-white focus:border-indigo-500"
+                    placeholder="যেমন: ১০০০"
+                    required
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">৩. বাৎসরিক প্রিমিয়াম লিমিট (Yearly)</label>
+                  <input
+                    type="number"
+                    value={yearlyLimit}
+                    onChange={(e) => setYearlyLimit(Number(e.target.value))}
+                    className="w-full text-xs font-extrabold border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 outline-none focus:bg-white focus:border-indigo-500"
+                    placeholder="যেমন: ১০০০০"
+                    required
+                    min="1"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingLimits}
+                className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-500/10"
+              >
+                {savingLimits ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "সীমা সংরক্ষণ করুন (Save limits)"
+                )}
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* Section 2.5: Online Payment Gateway Configuration */}
         {(isCompany || isAdmin) && (
