@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Settings collection (where subscription_limits lives)
+    match /settings/{settingId} {
+      // Anyone can read subscription limits so the app can boot/load parameters smoothly
+      allow read: if true;
+      // Only admins can update settings
+      allow write: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn();
+      
+      // Subcollection history
+      match /history/{historyId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn();
+      }
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Accounts collection (transactions)
+    match /accounts/{accountId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Installments collection
+    match /installments/{installmentId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Transaction requests
+    match /transaction_requests/{requestId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Company payment accounts
+    match /company_payment_accounts/{accountId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Activity logs
+    match /activity_logs/{logId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Support tickets
+    match /support_tickets/{ticketId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}

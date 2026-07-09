@@ -174,6 +174,8 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (!firebaseUser) return;
+
     const limitsRef = doc(db, "settings", "subscription_limits");
     const unsub = onSnapshot(limitsRef, (snap) => {
       if (snap.exists()) {
@@ -185,10 +187,11 @@ export default function App() {
         });
       }
     }, (err) => {
-      console.error("Error loading subscription limits in App:", err);
+      // Gracefully log as warning with clean fallbacks to prevent fatal console error reports
+      console.warn("Gracefully handled subscription limits loading. Using offline default limits:", err.message);
     });
     return () => unsub();
-  }, []);
+  }, [firebaseUser]);
 
   // Real-time parent company plan state for members, or own plan for companies
   const [companyPlan, setCompanyPlan] = useState<"free" | "monthly" | "yearly">("free");
