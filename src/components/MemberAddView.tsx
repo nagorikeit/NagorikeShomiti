@@ -47,6 +47,8 @@ export default function MemberAddView({
   const [guardianNid, setGuardianNid] = useState("");
   const [guardianAddress, setGuardianAddress] = useState("");
 
+  const [activeTab, setActiveTab] = useState<"personal" | "nominee">("personal");
+
   const [showPass, setShowPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
 
@@ -351,329 +353,359 @@ export default function MemberAddView({
           return null;
         })()}
 
-        {/* Basic Personal Info */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
+        {/* Navigation Tabs */}
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/65 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setActiveTab("personal")}
+            className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === "personal"
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
             👤 ব্যক্তিগত তথ্য
-          </p>
-
-          <div className="space-y-3.5">
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">মেম্বারের নাম *</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
-                  errors.name ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                }`}
-                placeholder="পূর্ণ নাম"
-              />
-              {errors.name && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.name}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">মোবাইল নম্বর *</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
-                  errors.phone ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                }`}
-                placeholder="01XXXXXXXXX"
-              />
-              {errors.phone && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.phone}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">ইমেইল *</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
-                  errors.email ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                }`}
-                placeholder="example@gmail.com"
-              />
-              {errors.email && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.email}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">জন্ম তারিখ</label>
-              <input
-                type="date"
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400"
-              />
-            </div>
-          </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("nominee")}
+            className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === "nominee"
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            👥 নমিনী তথ্য
+          </button>
         </div>
 
-        {/* Guardian Information */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 animate-fadeIn">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-indigo-500 animate-pulse" />
-            👥 অভিভাবকের তথ্য (Guardian Information)
-          </p>
+        {activeTab === "personal" ? (
+          <>
+            {/* Basic Personal Info */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
+                👤 ব্যক্তিগত তথ্য
+              </p>
 
-          <div className="space-y-3.5">
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">অভিভাবকের নাম</label>
-              <input
-                type="text"
-                value={guardianName}
-                onChange={(e) => setGuardianName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400"
-                placeholder="যেমন: মোঃ আবদুর রহমান"
-              />
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">মেম্বারের নাম *</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
+                      errors.name ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                    }`}
+                    placeholder="পূর্ণ নাম"
+                  />
+                  {errors.name && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.name}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">মোবাইল নম্বর *</label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
+                      errors.phone ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                    }`}
+                    placeholder="01XXXXXXXXX"
+                  />
+                  {errors.phone && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.phone}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">ইমেইল *</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
+                      errors.email ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                    }`}
+                    placeholder="example@gmail.com"
+                  />
+                  {errors.email && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.email}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">জন্ম তারিখ</label>
+                  <input
+                    type="date"
+                    value={dob}
+                    onChange={(e) => setDob(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-600 font-semibold mb-1">অভিভাবকের সাথে সম্পর্ক</label>
-                <select
-                  value={guardianRelation}
-                  onChange={(e) => setGuardianRelation(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition bg-white focus:border-blue-400"
-                >
-                  <option value="">নির্বাচন করুন</option>
-                  <option value="পিতা">পিতা (Father)</option>
-                  <option value="মাতা">মাতা (Mother)</option>
-                  <option value="স্বামী">স্বামী (Husband)</option>
-                  <option value="স্ত্রী">স্ত্রী (Wife)</option>
-                  <option value="ভাই">ভাই (Brother)</option>
-                  <option value="বোন">বোন (Sister)</option>
-                  <option value="অন্যান্য">অন্যান্য (Other)</option>
-                </select>
-              </div>
+            {/* Account settings */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
+                💳 অ্যাকাউন্টের ধরন ও কিস্তি
+              </p>
 
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">অ্যাকাউন্টের ধরন *</label>
+                  <select
+                    value={accountType}
+                    onChange={(e: any) => setAccountType(e.target.value)}
+                    className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition bg-white ${
+                      errors.accountType ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                    }`}
+                  >
+                    <option value="">নির্বাচন করুন</option>
+                    <option value="business">বিজনেস অ্যাকাউন্ট</option>
+                    <option value="saving">সেভিংস অ্যাকাউন্ট</option>
+                  </select>
+                  {errors.accountType && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.accountType}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">সেভিংসের ধরন *</label>
+                  <select
+                    value={investType}
+                    onChange={(e: any) => {
+                      setInvestType(e.target.value);
+                      setInvestDate("");
+                    }}
+                    className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition bg-white ${
+                      errors.investType ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                    }`}
+                  >
+                    <option value="">নির্বাচন করুন</option>
+                    <option value="monthly">মাসিক কিস্তি</option>
+                    <option value="yearly">বাৎসরিক কিস্তি</option>
+                    <option value="one_time">এককালীন জমা</option>
+                  </select>
+                  {errors.investType && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.investType}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">টাকার পরিমাণ</label>
+                  <input
+                    type="number"
+                    value={investAmount || ""}
+                    onChange={(e) => setInvestAmount(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400"
+                    placeholder="৳ পরিমাণ"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">
+                    {investType === "monthly" 
+                      ? "কিস্তি জমার তারিখ (প্রতি মাসের নির্দিষ্ট তারিখ) *" 
+                      : "কিস্তি জমার তারিখ (মাস ও দিন) *"}
+                  </label>
+                  {investType === "monthly" ? (
+                    <select
+                      value={investDate}
+                      onChange={(e) => setInvestDate(e.target.value)}
+                      className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition bg-white ${
+                        errors.investDate ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                      }`}
+                    >
+                      <option value="">তারিখ নির্বাচন করুন</option>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <option key={day} value={String(day)}>
+                          {toBanglaDigits(day)} তারিখ
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="date"
+                      value={investDate}
+                      onChange={(e) => setInvestDate(e.target.value)}
+                      className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
+                        errors.investDate ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                      }`}
+                    />
+                  )}
+                  {errors.investDate && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.investDate}</p>}
+                </div>
+
+                {getSavingsSchedulePreview()}
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">প্রারম্ভিক স্ট্যাটাস</label>
+                  <select
+                    value={status}
+                    onChange={(e: any) => setStatus(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition bg-white focus:border-blue-400"
+                  >
+                    <option value="active">সক্রিয় (Active)</option>
+                    <option value="pending">পেন্ডিং (Pending)</option>
+                    <option value="request">রিকোয়েস্ট (Request)</option>
+                    <option value="deactive">নিষ্ক্রিয় (Deactive)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Security / Password settings */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
+                🔐 পাসওয়ার্ড সেট করুন
+              </p>
+
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">পাসওয়ার্ড *</label>
+                  <div className="relative">
+                    <input
+                      type={showPass ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`w-full pl-4 pr-10 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
+                        errors.password ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                      }`}
+                      placeholder="কমপক্ষে ৬ অক্ষর"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPass ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                    </button>
+                  </div>
+                  {errors.password && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.password}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">পাসওয়ার্ড নিশ্চিত করুন *</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPass ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className={`w-full pl-4 pr-10 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
+                        errors.confirmPassword
+                          ? "border-rose-400 ring-1 ring-rose-400"
+                          : "border-slate-200 focus:border-blue-400"
+                      }`}
+                      placeholder="আবার পাসওয়ার্ড লিখুন"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPass(!showConfirmPass)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showConfirmPass ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && (
+                    <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.confirmPassword}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Identity Docs */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
+                🪪 পরিচয়পত্র তথ্য
+              </p>
+
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">ডকুমেন্ট টাইপ</label>
+                  <select
+                    value={nidType}
+                    onChange={(e) => setNidType(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition bg-white focus:border-blue-400"
+                  >
+                    <option value="NID">জাতীয় পরিচয়পত্র (NID)</option>
+                    <option value="Birth">জন্ম নিবন্ধন সনদ</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">পরিচয়পত্র নম্বর</label>
+                  <input
+                    type="text"
+                    value={nidNumber}
+                    onChange={(e) => setNidNumber(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                    className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
+                      errors.nidNumber ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
+                    }`}
+                    placeholder="NID / জন্ম নিবন্ধন নম্বর (১০-১৭ ডিজিট)"
+                  />
+                  {errors.nidNumber && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.nidNumber}</p>}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Nominee / Guardian Information */
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 animate-fadeIn">
+            <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-indigo-500 animate-pulse" />
+              👥 নমিনী তথ্য (Nominee Information)
+            </p>
+
+            <div className="space-y-3.5">
               <div>
-                <label className="block text-xs text-slate-600 font-semibold mb-1">অভিভাবকের এন আই ডি নাম্বার</label>
+                <label className="block text-xs text-slate-600 font-semibold mb-1">নমিনীর নাম</label>
                 <input
                   type="text"
-                  value={guardianNid}
-                  onChange={(e) => setGuardianNid(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                  value={guardianName}
+                  onChange={(e) => setGuardianName(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400"
-                  placeholder="১০-১৭ ডিজিট"
+                  placeholder="যেমন: মোঃ আবদুর রহমান"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">নমিনীর সাথে সম্পর্ক</label>
+                  <select
+                    value={guardianRelation}
+                    onChange={(e) => setGuardianRelation(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition bg-white focus:border-blue-400"
+                  >
+                    <option value="">নির্বাচন করুন</option>
+                    <option value="পিতা">পিতা (Father)</option>
+                    <option value="মাতা">মাতা (Mother)</option>
+                    <option value="স্বামী">স্বামী (Husband)</option>
+                    <option value="স্ত্রী">স্ত্রী (Wife)</option>
+                    <option value="ভাই">ভাই (Brother)</option>
+                    <option value="বোন">বোন (Sister)</option>
+                    <option value="অন্যান্য">অন্যান্য (Other)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">নমিনীর এনআইডি নম্বর</label>
+                  <input
+                    type="text"
+                    value={guardianNid}
+                    onChange={(e) => setGuardianNid(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400"
+                    placeholder="১০-১৭ ডিজিট"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-600 font-semibold mb-1">নমিনীর ঠিকানা</label>
+                <textarea
+                  value={guardianAddress}
+                  onChange={(e) => setGuardianAddress(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400 resize-none"
+                  placeholder="নমিনীর বিস্তারিত ঠিকানা লিখুন..."
                 />
               </div>
             </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">অভিভাবকের ঠিকানা</label>
-              <textarea
-                value={guardianAddress}
-                onChange={(e) => setGuardianAddress(e.target.value)}
-                rows={2}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400 resize-none"
-                placeholder="অভিভাবকের বিস্তারিত ঠিকানা লিখুন..."
-              />
-            </div>
           </div>
-        </div>
-
-        {/* Account settings */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
-            💳 অ্যাকাউন্টের ধরন ও কিস্তি
-          </p>
-
-          <div className="space-y-3.5">
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">অ্যাকাউন্টের ধরন *</label>
-              <select
-                value={accountType}
-                onChange={(e: any) => setAccountType(e.target.value)}
-                className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition bg-white ${
-                  errors.accountType ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                }`}
-              >
-                <option value="">নির্বাচন করুন</option>
-                <option value="business">বিজনেস অ্যাকাউন্ট</option>
-                <option value="saving">সেভিংস অ্যাকাউন্ট</option>
-              </select>
-              {errors.accountType && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.accountType}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">সেভিংসের ধরন *</label>
-              <select
-                value={investType}
-                onChange={(e: any) => {
-                  setInvestType(e.target.value);
-                  setInvestDate("");
-                }}
-                className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition bg-white ${
-                  errors.investType ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                }`}
-              >
-                <option value="">নির্বাচন করুন</option>
-                <option value="monthly">মাসিক কিস্তি</option>
-                <option value="yearly">বাৎসরিক কিস্তি</option>
-                <option value="one_time">এককালীন জমা</option>
-              </select>
-              {errors.investType && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.investType}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">টাকার পরিমাণ</label>
-              <input
-                type="number"
-                value={investAmount || ""}
-                onChange={(e) => setInvestAmount(parseFloat(e.target.value) || 0)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400"
-                placeholder="৳ পরিমাণ"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">
-                {investType === "monthly" 
-                  ? "কিস্তি জমার তারিখ (প্রতি মাসের নির্দিষ্ট তারিখ) *" 
-                  : "কিস্তি জমার তারিখ (মাস ও দিন) *"}
-              </label>
-              {investType === "monthly" ? (
-                <select
-                  value={investDate}
-                  onChange={(e) => setInvestDate(e.target.value)}
-                  className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition bg-white ${
-                    errors.investDate ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                  }`}
-                >
-                  <option value="">তারিখ নির্বাচন করুন</option>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                    <option key={day} value={String(day)}>
-                      {toBanglaDigits(day)} তারিখ
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="date"
-                  value={investDate}
-                  onChange={(e) => setInvestDate(e.target.value)}
-                  className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
-                    errors.investDate ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                  }`}
-                />
-              )}
-              {errors.investDate && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.investDate}</p>}
-            </div>
-
-            {getSavingsSchedulePreview()}
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">প্রারম্ভিক স্ট্যাটাস</label>
-              <select
-                value={status}
-                onChange={(e: any) => setStatus(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition bg-white focus:border-blue-400"
-              >
-                <option value="active">সক্রিয় (Active)</option>
-                <option value="pending">পেন্ডিং (Pending)</option>
-                <option value="request">রিকোয়েস্ট (Request)</option>
-                <option value="deactive">নিষ্ক্রিয় (Deactive)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Security / Password settings */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
-            🔐 পাসওয়ার্ড সেট করুন
-          </p>
-
-          <div className="space-y-3.5">
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">পাসওয়ার্ড *</label>
-              <div className="relative">
-                <input
-                  type={showPass ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full pl-4 pr-10 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
-                    errors.password ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                  }`}
-                  placeholder="কমপক্ষে ৬ অক্ষর"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showPass ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
-                </button>
-              </div>
-              {errors.password && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.password}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">পাসওয়ার্ড নিশ্চিত করুন *</label>
-              <div className="relative">
-                <input
-                  type={showConfirmPass ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={`w-full pl-4 pr-10 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
-                    errors.confirmPassword
-                      ? "border-rose-400 ring-1 ring-rose-400"
-                      : "border-slate-200 focus:border-blue-400"
-                  }`}
-                  placeholder="আবার পাসওয়ার্ড লিখুন"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPass(!showConfirmPass)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showConfirmPass ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
-                </button>
-              </div>
-              {errors.confirmPassword && (
-                <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.confirmPassword}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Identity Docs */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 border-b pb-2 flex items-center gap-1.5">
-            🪪 পরিচয়পত্র তথ্য
-          </p>
-
-          <div className="space-y-3.5">
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">ডকুমেন্ট টাইপ</label>
-              <select
-                value={nidType}
-                onChange={(e) => setNidType(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition bg-white focus:border-blue-400"
-              >
-                <option value="NID">জাতীয় পরিচয়পত্র (NID)</option>
-                <option value="Birth">জন্ম নিবন্ধন সনদ</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-600 font-semibold mb-1">পরিচয়পত্র নম্বর</label>
-              <input
-                type="text"
-                value={nidNumber}
-                onChange={(e) => setNidNumber(e.target.value.replace(/\D/g, "").slice(0, 17))}
-                className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
-                  errors.nidNumber ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
-                }`}
-                placeholder="NID / জন্ম নিবন্ধন নম্বর (১০-১৭ ডিজিট)"
-              />
-              {errors.nidNumber && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.nidNumber}</p>}
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Submit button */}
         <button

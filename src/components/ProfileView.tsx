@@ -93,6 +93,8 @@ export default function ProfileView({
   const [guardianNid, setGuardianNid] = useState("");
   const [guardianAddress, setGuardianAddress] = useState("");
 
+  const [activeTab, setActiveTab] = useState<"personal" | "nominee">("personal");
+
   // Company-only form states
   const [companyName, setCompanyName] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
@@ -1276,254 +1278,285 @@ export default function ProfileView({
           </div>
         )}
 
-        {/* Company information for Company profile */}
-        {role === "company" && (
-          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3.5 mb-4">
-            <span className="text-[11px] font-bold text-indigo-600 block uppercase tracking-wide">
-              🏢 কোম্পানির তথ্য
-            </span>
-            <div>
-              <label className="text-[10px] font-bold text-indigo-500 mb-1 ml-1 block">কোম্পানির নাম</label>
-              <input
-                type="text"
-                disabled={!editable}
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-indigo-500 mb-1 ml-1 block">কোম্পানি ঠিকানা</label>
-              <input
-                type="text"
-                disabled={!editable}
-                value={companyAddress}
-                onChange={(e) => setCompanyAddress(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-              />
-            </div>
-          </div>
-        )}
+        {/* Navigation Tabs */}
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/65 shadow-inner mb-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("personal")}
+            className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === "personal"
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            👤 ব্যক্তিগত তথ্য
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("nominee")}
+            className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === "nominee"
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            👥 নমিনী তথ্য
+          </button>
+        </div>
 
-        {/* Personal & identity info */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 mb-4">
-          <span className="text-[11px] font-bold text-indigo-600 block uppercase tracking-wide">
-            👤 ব্যক্তিগত ও পরিচয়পত্র তথ্য
-          </span>
-
-          <div className="space-y-3">
-            <div>
-              <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">পূর্ণ নাম</label>
-              <input
-                type="text"
-                disabled={!editable}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">ডকুমেন্ট টাইপ</label>
-                <select
-                  disabled={!editable}
-                  value={nidType}
-                  onChange={(e) => setNidType(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-semibold text-xs focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-                >
-                  <option value="NID">NID</option>
-                  <option value="Birth Certificate">জন্ম সনদ</option>
-                  <option value="Birth">জন্ম নিবন্ধন</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">ডকুমেন্ট নম্বর</label>
-                <input
-                  type="text"
-                  disabled={!editable}
-                  value={nidNumber}
-                  onChange={(e) => setNidNumber(e.target.value.replace(/\D/g, "").slice(0, 17))}
-                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-                  placeholder="১০-১৭ ডিজিট"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">মোবাইল নম্বর</label>
-                <input
-                  type="tel"
-                  disabled={!editable}
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-                />
-              </div>
-              <div>
-                <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">হোয়াটসঅ্যাপ নম্বর</label>
-                <input
-                  type="tel"
-                  disabled={!editable}
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-                  placeholder="যেমন: +8801700000000"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">জন্ম তারিখ</label>
-                <input
-                  type="date"
-                  disabled={!editable}
-                  value={dob}
-                  onChange={(e) => setDob(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-                />
-              </div>
-              <div>
-                <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">ইমেইল</label>
-                <input
-                  type="email"
-                  disabled={!editable}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">স্থায়ী ঠিকানা</label>
-              <input
-                type="text"
-                disabled={!editable}
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-              />
-            </div>
-
-            {role !== "company" && (
-              <div className="border-t border-slate-100 pt-4 mt-2 space-y-3">
-                <span className="text-[10px] font-extrabold text-indigo-600 block uppercase tracking-wide">
-                  👥 অভিভাবকের তথ্য (Guardian Information)
+        {activeTab === "personal" ? (
+          <>
+            {/* Company information for Company profile */}
+            {role === "company" && (
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3.5 mb-4 animate-fadeIn">
+                <span className="text-[11px] font-bold text-indigo-600 block uppercase tracking-wide">
+                  🏢 কোম্পানির তথ্য
                 </span>
-
                 <div>
-                  <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">অভিভাবকের নাম</label>
+                  <label className="text-[10px] font-bold text-indigo-500 mb-1 ml-1 block">কোম্পানির নাম</label>
                   <input
                     type="text"
                     disabled={!editable}
-                    value={guardianName}
-                    onChange={(e) => setGuardianName(e.target.value)}
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
-                    placeholder="অভিভাবকের নাম"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-indigo-500 mb-1 ml-1 block">কোম্পানি ঠিকানা</label>
+                  <input
+                    type="text"
+                    disabled={!editable}
+                    value={companyAddress}
+                    onChange={(e) => setCompanyAddress(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Personal & identity info */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 mb-4 animate-fadeIn">
+              <span className="text-[11px] font-bold text-indigo-600 block uppercase tracking-wide">
+                👤 ব্যক্তিগত ও পরিচয়পত্র তথ্য
+              </span>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">পূর্ণ নাম</label>
+                  <input
+                    type="text"
+                    disabled={!editable}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">অভিভাবকের সাথে সম্পর্ক</label>
+                    <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">ডকুমেন্ট টাইপ</label>
                     <select
                       disabled={!editable}
-                      value={guardianRelation}
-                      onChange={(e) => setGuardianRelation(e.target.value)}
+                      value={nidType}
+                      onChange={(e) => setNidType(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-semibold text-xs focus:bg-white focus:border-indigo-500 disabled:opacity-75"
                     >
-                      <option value="">নির্বাচন করুন</option>
-                      <option value="পিতা">পিতা</option>
-                      <option value="মাতা">মাতা</option>
-                      <option value="স্বামী">স্বামী</option>
-                      <option value="স্ত্রী">স্ত্রী</option>
-                      <option value="ভাই">ভাই</option>
-                      <option value="বোন">বোন</option>
-                      <option value="অন্যান্য">অন্যান্য</option>
+                      <option value="NID">NID</option>
+                      <option value="Birth Certificate">জন্ম সনদ</option>
+                      <option value="Birth">জন্ম নিবন্ধন</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">অভিভাবকের এনআইডি নম্বর</label>
+                    <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">ডকুমেন্ট নম্বর</label>
                     <input
                       type="text"
                       disabled={!editable}
-                      value={guardianNid}
-                      onChange={(e) => setGuardianNid(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                      value={nidNumber}
+                      onChange={(e) => setNidNumber(e.target.value.replace(/\D/g, "").slice(0, 17))}
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
                       placeholder="১০-১৭ ডিজিট"
                     />
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">মোবাইল নম্বর</label>
+                    <input
+                      type="tel"
+                      disabled={!editable}
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">হোয়াটসঅ্যাপ নম্বর</label>
+                    <input
+                      type="tel"
+                      disabled={!editable}
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                      placeholder="যেমন: +8801700000000"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">জন্ম তারিখ</label>
+                    <input
+                      type="date"
+                      disabled={!editable}
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">ইমেইল</label>
+                    <input
+                      type="email"
+                      disabled={!editable}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">অভিভাবকের ঠিকানা</label>
-                  <textarea
+                  <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">স্থায়ী ঠিকানা</label>
+                  <input
+                    type="text"
                     disabled={!editable}
-                    value={guardianAddress}
-                    onChange={(e) => setGuardianAddress(e.target.value)}
-                    rows={2}
-                    className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75 resize-none"
-                    placeholder="অভিভাবকের বিস্তারিত ঠিকানা..."
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                  />
+                </div>
+
+                {/* NID Documents */}
+                <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+                  <div className="text-center p-3 border-2 border-dashed border-slate-200 rounded-2xl relative">
+                    {editable && (
+                      <input
+                        type="file"
+                        id="idFrontUpload"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={(e) => e.target.files?.[0] && handleCloudinaryUpload(e.target.files[0], "idFrontUrl")}
+                      />
+                    )}
+                    <label htmlFor="idFrontUpload" className="cursor-pointer block">
+                      <Upload className="w-5 h-5 mx-auto mb-1 text-slate-300" />
+                      <span className="text-[10px] font-bold text-slate-400 block">NID सामने</span>
+                    </label>
+                    {idFrontUrl && (
+                      <img
+                        onClick={() => setLightboxUrl(idFrontUrl)}
+                        src={idFrontUrl}
+                        className="mt-2 h-14 mx-auto rounded shadow-sm object-cover cursor-pointer hover:opacity-80 transition"
+                        alt=""
+                      />
+                    )}
+                  </div>
+
+                  <div className="text-center p-3 border-2 border-dashed border-slate-200 rounded-2xl relative">
+                    {editable && (
+                      <input
+                        type="file"
+                        id="idBackUpload"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={(e) => e.target.files?.[0] && handleCloudinaryUpload(e.target.files[0], "idBackUrl")}
+                      />
+                    )}
+                    <label htmlFor="idBackUpload" className="cursor-pointer block">
+                      <Upload className="w-5 h-5 mx-auto mb-1 text-slate-300" />
+                      <span className="text-[10px] font-bold text-slate-400 block">NID পিছনে</span>
+                    </label>
+                    {idBackUrl && (
+                      <img
+                        onClick={() => setLightboxUrl(idBackUrl)}
+                        src={idBackUrl}
+                        className="mt-2 h-14 mx-auto rounded shadow-sm object-cover cursor-pointer hover:opacity-80 transition"
+                        alt=""
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Nominee / Guardian Information Tab */
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 mb-4 animate-fadeIn">
+            <span className="text-[11px] font-bold text-indigo-600 block uppercase tracking-wide">
+              👥 নমিনী তথ্য (Nominee Information)
+            </span>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">নমিনীর নাম</label>
+                <input
+                  type="text"
+                  disabled={!editable}
+                  value={guardianName}
+                  onChange={(e) => setGuardianName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                  placeholder="যেমন: মোঃ আবদুর রহমান"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">নমিনীর সাথে সম্পর্ক</label>
+                  <select
+                    disabled={!editable}
+                    value={guardianRelation}
+                    onChange={(e) => setGuardianRelation(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-semibold text-xs focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                  >
+                    <option value="">নির্বাচন করুন</option>
+                    <option value="পিতা">পিতা</option>
+                    <option value="মাতা">মাতা</option>
+                    <option value="স্বামী">স্বামী</option>
+                    <option value="স্ত্রী">স্ত্রী</option>
+                    <option value="ভাই">ভাই</option>
+                    <option value="বোন">বোন</option>
+                    <option value="অন্যান্য">অন্যান্য</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">নমিনীর এনআইডি নম্বর</label>
+                  <input
+                    type="text"
+                    disabled={!editable}
+                    value={guardianNid}
+                    onChange={(e) => setGuardianNid(e.target.value.replace(/\D/g, "").slice(0, 17))}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
+                    placeholder="১০-১৭ ডিজিট"
                   />
                 </div>
               </div>
-            )}
 
-            {/* NID Documents */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="text-center p-3 border-2 border-dashed border-slate-200 rounded-2xl relative">
-                {editable && (
-                  <input
-                    type="file"
-                    id="idFrontUpload"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={(e) => e.target.files?.[0] && handleCloudinaryUpload(e.target.files[0], "idFrontUrl")}
-                  />
-                )}
-                <label htmlFor="idFrontUpload" className="cursor-pointer block">
-                  <Upload className="w-5 h-5 mx-auto mb-1 text-slate-300" />
-                  <span className="text-[10px] font-bold text-slate-400 block">NID সামনে</span>
-                </label>
-                {idFrontUrl && (
-                  <img
-                    onClick={() => setLightboxUrl(idFrontUrl)}
-                    src={idFrontUrl}
-                    className="mt-2 h-14 mx-auto rounded shadow-sm object-cover cursor-pointer hover:opacity-80 transition"
-                    alt=""
-                  />
-                )}
-              </div>
-
-              <div className="text-center p-3 border-2 border-dashed border-slate-200 rounded-2xl relative">
-                {editable && (
-                  <input
-                    type="file"
-                    id="idBackUpload"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={(e) => e.target.files?.[0] && handleCloudinaryUpload(e.target.files[0], "idBackUrl")}
-                  />
-                )}
-                <label htmlFor="idBackUpload" className="cursor-pointer block">
-                  <Upload className="w-5 h-5 mx-auto mb-1 text-slate-300" />
-                  <span className="text-[10px] font-bold text-slate-400 block">NID পিছনে</span>
-                </label>
-                {idBackUrl && (
-                  <img
-                    onClick={() => setLightboxUrl(idBackUrl)}
-                    src={idBackUrl}
-                    className="mt-2 h-14 mx-auto rounded shadow-sm object-cover cursor-pointer hover:opacity-80 transition"
-                    alt=""
-                  />
-                )}
+              <div>
+                <label className="text-[9px] font-semibold text-slate-500 mb-1 ml-1 block">নমিনীর ঠিকানা</label>
+                <textarea
+                  disabled={!editable}
+                  value={guardianAddress}
+                  onChange={(e) => setGuardianAddress(e.target.value)}
+                  rows={2}
+                  className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75 resize-none"
+                  placeholder="নমিনীর বিস্তারিত ঠিকানা..."
+                />
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Status Message for Requested or Pending Profile */}
         {isOwnProfile && role === "company" && status === "request" && (
