@@ -712,7 +712,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Global Powered by NagorikeIT Footer */}
-      <footer className="w-full pt-3 pb-20 md:pb-3 mt-auto border-t border-slate-200/50 dark:border-slate-800/40 flex flex-col items-center justify-center gap-0.5 bg-slate-50/50 dark:bg-slate-950/20 backdrop-blur-sm">
+      <footer className="w-full py-3 mt-auto border-t border-slate-200/50 dark:border-slate-800/40 flex flex-col items-center justify-center gap-0.5 bg-slate-50/50 dark:bg-slate-950/20 backdrop-blur-sm">
         <a 
           href="https://www.nagorike.com" 
           target="_blank" 
@@ -724,6 +724,9 @@ export default function App() {
         </a>
         <p className="text-[9px] text-slate-400/80 dark:text-slate-500/80">নাগরিক আইটি সেবা কর্তৃক সর্বস্বত্ব সংরক্ষিত</p>
       </footer>
+      {currentUser && (currentUser.status === "active" || currentUser.role === "admin") && (
+        <div className="h-16 md:hidden shrink-0" />
+      )}
     </div>
   );
 }
