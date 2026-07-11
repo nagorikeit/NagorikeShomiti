@@ -497,6 +497,12 @@ export default function GlobalHeader({
                       >
                         <LogOut className="w-3.5 h-3.5" /> {t.logout}
                       </button>
+
+                      <div className="px-3.5 py-2 text-center bg-slate-50/50 dark:bg-slate-950/20 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl">
+                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-extrabold tracking-wide">
+                          নাগরিক আইটি সেবা কর্তৃক সর্বস্বত্ব সংরক্ষিত
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </>

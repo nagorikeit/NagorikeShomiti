@@ -2103,7 +2103,7 @@ export default function DashboardView({
     .reduce((sum, h) => sum + Number(h.arrears || 0), 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28 relative">
+    <div className="pb-6 relative flex-1">
       {/* Welcome Banner */}
       <div className="bg-gradient-to-br from-blue-700 to-indigo-800 text-white p-5 m-4 rounded-3xl shadow-md">
         <p className="text-[10px] opacity-80 font-bold uppercase tracking-widest">সালাম ও শুভেচ্ছা!</p>

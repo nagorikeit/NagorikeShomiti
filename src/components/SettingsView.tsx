@@ -325,7 +325,7 @@ export default function SettingsView({
   const isAdmin = currentUser?.role === "admin";
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="pb-6 flex-1">
       {/* Settings Top Bar */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">

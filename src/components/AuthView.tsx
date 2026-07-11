@@ -7,6 +7,7 @@ import {
 import {
   doc,
   setDoc,
+  getDoc,
   runTransaction,
   collection,
   query,
@@ -60,11 +61,29 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
     const trimmed = identifier.trim();
     if (trimmed.includes("@")) return trimmed;
     const normalized = normalizePhoneNumber(trimmed);
-    const q = query(collection(db, "users"), where("mobile", "==", normalized));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      return snap.docs[0].data().email as string;
+    
+    // First, try fast, unauthenticated-safe direct lookup in phone_to_email collection
+    try {
+      const mappingRef = doc(db, "phone_to_email", normalized);
+      const mappingSnap = await getDoc(mappingRef);
+      if (mappingSnap.exists()) {
+        return mappingSnap.data().email as string;
+      }
+    } catch (e) {
+      console.warn("Fast phone mapping lookup not available:", e);
     }
+
+    // Fallback if the mapping does not exist (e.g. legacy/unsynced users)
+    try {
+      const q = query(collection(db, "users"), where("mobile", "==", normalized));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return snap.docs[0].data().email as string;
+      }
+    } catch (e) {
+      console.warn("Unable to perform fallback users query:", e);
+    }
+
     return null;
   };
 
@@ -88,7 +107,13 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
       onSuccess();
     } catch (err: any) {
       console.error(err);
-      setError(t.loginError);
+      if (err.message === "User not found") {
+        setError(language === "bn" ? "❌ এই মোবাইল নম্বর বা ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি!" : "❌ No account found with this mobile number or email!");
+      } else if (err.code === "auth/invalid-credential") {
+        setError(language === "bn" ? "❌ পাসওয়ার্ডটি ভুল হয়েছে!" : "❌ Incorrect password!");
+      } else {
+        setError(err.message || t.loginError);
+      }
     } finally {
       setLoading(false);
     }
@@ -125,6 +150,10 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
 
     setLoading(true);
     try {
+      // Every user registering via the signup page is a company and is pending initially
+      const initialRole = "company";
+      const initialStatus = "pending";
+
       const cred = await createUserWithEmailAndPassword(auth, email, password);
 
       const newUserId = await runTransaction(db, async (transaction) => {
@@ -142,11 +171,21 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
         name: ownerName,
         mobile: normalizedPhone,
         email: email,
-        role: "company",
-        status: "pending",
+        role: initialRole,
+        status: initialStatus,
         joinedDate: Date.now(),
         createdAt: Date.now(),
       });
+
+      // Write phone to email mapping for easy lookup before login
+      try {
+        await setDoc(doc(db, "phone_to_email", normalizedPhone), {
+          email: email,
+          userId: newUserId,
+        });
+      } catch (e) {
+        console.error("Error setting phone_to_email mapping:", e);
+      }
 
       showToast("🎉 রেজিস্ট্রেশন সফল! অ্যাডমিন অ্যাপ্রুভ করলে ড্যাশবোর্ড ব্যবহার করতে পারবেন।");
       onSuccess();

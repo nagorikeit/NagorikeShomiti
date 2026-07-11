@@ -728,7 +728,7 @@ export default function ProfileView({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="pb-6 flex-1">
       {/* Toast */}
       {toast && (
         <div

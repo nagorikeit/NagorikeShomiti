@@ -3,12 +3,13 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBQnJ6MNRKSpe7LWissGaRvYdZJdFi0eVs",
-  authDomain: "shomitiapp-847e3.firebaseapp.com",
-  projectId: "shomitiapp-847e3",
-  storageBucket: "shomitiapp-847e3.firebasestorage.app",
-  messagingSenderId: "121572759041",
-  appId: "1:121572759041:web:2df968bfbe76fa287b5200"
+  apiKey: "AIzaSyB2Ev5TIzRVC43duz-1vZFztJ6jYPD6528",
+  authDomain: "nagorikeshomiti.firebaseapp.com",
+  projectId: "nagorikeshomiti",
+  storageBucket: "nagorikeshomiti.firebasestorage.app",
+  messagingSenderId: "1033150392916",
+  appId: "1:1033150392916:web:0d7bc99727c4f80e5ddbc1",
+  measurementId: "G-4RHDJ7SZWP"
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();

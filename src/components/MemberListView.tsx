@@ -219,7 +219,7 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="pb-6 flex-1">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-5 rounded-b-3xl shadow-lg mb-5 flex items-center justify-between">
         <div>

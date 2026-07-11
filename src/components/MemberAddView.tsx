@@ -237,6 +237,16 @@ export default function MemberAddView({
         guardianAddress: guardianAddress,
       });
 
+      // Write phone to email mapping for easy lookup before login
+      try {
+        await setDoc(doc(db, "phone_to_email", normalizedPhone), {
+          email: email,
+          userId: memberId,
+        });
+      } catch (e) {
+        console.error("Error setting phone_to_email mapping in MemberAddView:", e);
+      }
+
       // Write starting history if investAmount > 0
       if (investAmount > 0) {
         const historyCol = collection(db, "users", memberId, "history");
@@ -269,7 +279,7 @@ export default function MemberAddView({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="pb-6 flex-1">
       {/* Toast Notification */}
       {toast && (
         <div

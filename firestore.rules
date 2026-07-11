@@ -80,5 +80,17 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
+
+    // Counters collection
+    match /counters/{counterId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Phone to email mapping lookup
+    match /phone_to_email/{phone} {
+      allow get: if true;
+      allow create, update: if isSignedIn();
+    }
   }
 }

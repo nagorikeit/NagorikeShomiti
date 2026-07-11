@@ -130,6 +130,11 @@ export function normalizePhoneNumber(input: string): string {
     normalized = normalized.slice(-11);
   }
 
+  // Prepend 0 if user omitted it but supplied 10 digits starting with 1
+  if (normalized.length === 10 && normalized.startsWith("1")) {
+    normalized = "0" + normalized;
+  }
+
   return normalized;
 }
 

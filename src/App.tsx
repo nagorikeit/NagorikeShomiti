@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, onSnapshot, collectionGroup, doc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, collectionGroup, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { User } from "./types";
 import AuthView from "./components/AuthView";
+import { CompleteProfileView } from "./components/CompleteProfileView";
 import DashboardView from "./components/DashboardView";
 import MemberListView from "./components/MemberListView";
 import MemberAddView from "./components/MemberAddView";
@@ -323,6 +324,68 @@ export default function App() {
     };
   }, [appName]);
 
+  // Track company member history document counts for accurate subscription limit enforcement
+  const [memberHistoryCounts, setMemberHistoryCounts] = useState<{[userId: string]: number}>({});
+
+  useEffect(() => {
+    setMemberHistoryCounts({});
+  }, [currentUser]);
+
+  // Live sync of all company members' history counts for Company role
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== "company") return;
+
+    const q = query(collection(db, "users"), where("companyId", "==", currentUser.docId));
+    const activeUnsubs = new Map<string, () => void>();
+
+    const unsubUsersList = onSnapshot(q, (snap) => {
+      const currentMemberIds = new Set<string>();
+      snap.forEach((d) => {
+        const u = d.data();
+        if (u.role === "member") {
+          currentMemberIds.add(d.id);
+        }
+      });
+
+      // Remove unsubs for users no longer in company
+      for (const [userId, unsub] of activeUnsubs.entries()) {
+        if (!currentMemberIds.has(userId)) {
+          unsub();
+          activeUnsubs.delete(userId);
+          setMemberHistoryCounts((prev) => {
+            const updated = { ...prev };
+            delete updated[userId];
+            return updated;
+          });
+        }
+      }
+
+      // Add unsubs for new members
+      currentMemberIds.forEach((userId) => {
+        if (!activeUnsubs.has(userId)) {
+          const unsubHist = onSnapshot(collection(db, "users", userId, "history"), (histSnap) => {
+            setMemberHistoryCounts((prev) => ({
+              ...prev,
+              [userId]: histSnap.docs.length
+            }));
+          }, (err) => {
+            console.warn(`Failed to listen to history count for member ${userId}:`, err.message);
+          });
+          activeUnsubs.set(userId, unsubHist);
+        }
+      });
+    }, (err) => {
+      console.warn("Failed to listen to company members list in App:", err.message);
+    });
+
+    return () => {
+      unsubUsersList();
+      activeUnsubs.forEach((unsub) => unsub());
+    };
+  }, [currentUser]);
+
+  const companyHistoriesCount: number = (Object.values(memberHistoryCounts) as number[]).reduce((sum: number, val: number) => sum + val, 0);
+
   // Subscription system entry counting
   const [totalEntries, setTotalEntries] = useState(0);
 
@@ -350,7 +413,16 @@ export default function App() {
       );
       const mCount = companyMemberIds.size;
       const projCount = pList.filter((p) => p.companyId === companyId).length;
-      const histCount = hList.filter((h) => companyMemberIds.has(h.userDocId)).length;
+      
+      let histCount = 0;
+      if (currentUser.role === "admin") {
+        histCount = hList.filter((h) => companyMemberIds.has(h.userDocId)).length;
+      } else if (currentUser.role === "member") {
+        histCount = hList.filter((h) => h.userDocId === currentUser.docId).length;
+      } else {
+        // For company, we sum the real-time member history counts
+        histCount = companyHistoriesCount;
+      }
 
       const total = mCount + projCount + iCount + histCount + lCount;
       setTotalEntries(total);
@@ -425,14 +497,10 @@ export default function App() {
         computeTotal(usersList, projectsList, installmentsCount, latestLedgerCount, latestHistories);
       });
     } else {
-      unsubAllHistory = onSnapshot(collectionGroup(db, "history"), (snap) => {
-        latestHistories = [];
-        snap.forEach((d) => {
-          const parentUserDocId = d.ref.parent?.parent?.id || "";
-          latestHistories.push({ docId: d.id, userDocId: parentUserDocId });
-        });
-        computeTotal(usersList, projectsList, installmentsCount, latestLedgerCount, latestHistories);
-      });
+      // Company role handles history counts reactively outside to prevent collectionGroup permission errors
+      unsubAllHistory = () => {};
+      // We still need to call computeTotal to initialize/update when the other queries snapshot
+      computeTotal(usersList, projectsList, installmentsCount, latestLedgerCount, latestHistories);
     }
 
     return () => {
@@ -442,6 +510,31 @@ export default function App() {
       unsubAccounts();
       unsubAllHistory();
     };
+  }, [currentUser, companyHistoriesCount]);
+
+  // Background sync of phone to email mappings for unauthenticated lookup during login
+  useEffect(() => {
+    if (!currentUser) return;
+    const syncPhoneMappings = async () => {
+      if (currentUser.role === "admin" || currentUser.role === "company") {
+        try {
+          const usersSnap = await getDocs(collection(db, "users"));
+          for (const d of usersSnap.docs) {
+            const data = d.data();
+            if (data.mobile && data.email) {
+              const phoneRef = doc(db, "phone_to_email", data.mobile);
+              const phoneSnap = await getDoc(phoneRef);
+              if (!phoneSnap.exists() || phoneSnap.data().email !== data.email) {
+                await setDoc(phoneRef, { email: data.email, userId: d.id }, { merge: true });
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn("Background phone mapping sync postponed/skipped due to permissions:", err.message);
+        }
+      }
+    };
+    syncPhoneMappings();
   }, [currentUser]);
 
   const handleNavigate = (view: string, params: any = null) => {
@@ -467,13 +560,17 @@ export default function App() {
     );
   }
 
-  if (!firebaseUser || !currentUser) {
+  if (firebaseUser && !currentUser) {
+    return <CompleteProfileView firebaseUser={firebaseUser} language={language} />;
+  }
+
+  if (!firebaseUser) {
     return <AuthView onSuccess={() => {}} language={language} setLanguage={setLanguage} />;
   }
 
   // Render correct view based on state
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 select-none pb-20 md:pb-0 transition-colors duration-200">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 select-none transition-colors duration-200 flex flex-col">
       <GlobalHeader
         currentUser={currentUser}
         currentView={currentView}
@@ -613,6 +710,20 @@ export default function App() {
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Global Powered by NagorikeIT Footer */}
+      <footer className="w-full pt-3 pb-20 md:pb-3 mt-auto border-t border-slate-200/50 dark:border-slate-800/40 flex flex-col items-center justify-center gap-0.5 bg-slate-50/50 dark:bg-slate-950/20 backdrop-blur-sm">
+        <a 
+          href="https://www.nagorike.com" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-[11px] font-black tracking-wide text-slate-400 dark:text-slate-500 hover:text-sky-600 dark:hover:text-sky-400 transition-colors flex items-center gap-1"
+        >
+          <span>Powered by</span>
+          <span className="text-slate-600 dark:text-slate-300 font-extrabold hover:underline">NagorikeIT</span>
+        </a>
+        <p className="text-[9px] text-slate-400/80 dark:text-slate-500/80">নাগরিক আইটি সেবা কর্তৃক সর্বস্বত্ব সংরক্ষিত</p>
+      </footer>
     </div>
   );
 }
