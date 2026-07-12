@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "../firebase";
 import { User } from "../types";
 import { doc, getDoc, collection, query, where, getDocs, limit, onSnapshot } from "firebase/firestore";
-import { LayoutDashboard, Users, UserPlus, User as UserIcon, LogOut, Building2, AlertCircle, Bell, ArrowLeftRight, Plus, Sun, Moon, Globe, Settings, Crown, Smartphone, Download } from "lucide-react";
+import { LayoutDashboard, Users, UserPlus, User as UserIcon, LogOut, Building2, AlertCircle, Bell, ArrowLeftRight, Plus, Sun, Moon, Globe, Settings, Crown, Smartphone, Download, Megaphone } from "lucide-react";
 import { translations, Language } from "../utils/translations";
 
 interface GlobalHeaderProps {
@@ -206,6 +206,20 @@ export default function GlobalHeader({
                 </button>
               )}
 
+              {(currentUser.role === "admin" || currentUser.email === "nagorikeitsheba@gmail.com") && (
+                <button
+                  onClick={() => onNavigate("ad-management")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    currentView === "ad-management"
+                      ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                  }`}
+                >
+                  <Megaphone className="w-4 h-4 text-indigo-500" />
+                  {language === "bn" ? "অ্যাড ম্যানেজমেন্ট" : "Ad Management"}
+                </button>
+              )}
+
               {isCompanyOrAdmin && (
                 <>
                   <button
@@ -381,6 +395,18 @@ export default function GlobalHeader({
                             <UserPlus className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {t.memberAddFull}
                           </button>
                         </>
+                      )}
+
+                      {(currentUser.role === "admin" || currentUser.email === "nagorikeitsheba@gmail.com") && (
+                        <button
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                            onNavigate("ad-management");
+                          }}
+                          className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-indigo-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-indigo-600 dark:text-indigo-400 font-extrabold"
+                        >
+                          <Megaphone className="w-3.5 h-3.5 text-indigo-500" /> {language === "bn" ? "অ্যাড ম্যানেজমেন্ট" : "Ad Management"}
+                        </button>
                       )}
 
                       <button

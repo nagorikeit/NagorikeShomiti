@@ -17,7 +17,10 @@ service cloud.firestore {
       // Anyone can read subscription limits so the app can boot/load parameters smoothly
       allow read: if true;
       // Only admins can update settings
-      allow write: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow write: if isSignedIn() && (
+        request.auth.token.email == 'nagorikeitsheba@gmail.com' || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     // Users collection

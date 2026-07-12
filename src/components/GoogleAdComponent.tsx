@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Volume2, VolumeX, X, Play, AlertCircle, Sparkles, ExternalLink } from "lucide-react";
+import { db } from "../firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 
 interface GoogleAdComponentProps {
   type: "banner" | "video";
   companyPlan: "free" | "monthly" | "yearly";
 }
 
-// Interactive Simulated Ad Content
+// Interactive Simulated Ad Content - MANUAL LOCAL CAMPAIGNS
 const AD_CAMPAIGNS = [
   {
     title: "বিকাশ অ্যাপ ডাউনলোড করুন",
@@ -37,11 +39,39 @@ const AD_CAMPAIGNS = [
   }
 ];
 
+// Interactive Simulated Ad Content - GOOGLE ADSENSE CAMPAIGNS
+const ADSENSE_CAMPAIGNS = [
+  {
+    title: "গুগল ক্লাউড প্ল্যাটফর্ম - $৩০০ ফ্রি ক্রেডিট",
+    description: "আপনার সমিতির হিসাব ও ডেটাবেস হোস্ট করুন সিকিউর গুগল ক্লাউড সার্ভারে। নতুন ব্যবহারকারীদের জন্য বিশেষ ছাড় ও উপহার!",
+    imageUrl: "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=600&q=80",
+    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-businesswoman-analyzing-charts-on-a-tablet-40436-large.mp4",
+    ctaText: "ফ্রি ট্রায়াল শুরু করুন",
+    link: "https://cloud.google.com",
+    advertiser: "Google Cloud"
+  },
+  {
+    title: "গুগল ওয়ার্কস্পেস - ব্যবসার টিম কোলাবোরেশন",
+    description: "প্রফেশনাল জিমেইল, গুগল ডকস এবং ড্রাইভ ক্লাউড ক্লায়েন্ট। সব ফাইল ও ড্রাইভ সুরক্ষিত রাখুন একই কন্ট্রোল সেন্টারে।",
+    imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80",
+    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-person-typing-on-a-laptop-keyboard-41586-large.mp4",
+    ctaText: "এখনই শুরু করুন",
+    link: "https://workspace.google.com",
+    advertiser: "Google Workspace"
+  }
+];
+
 export default function GoogleAdComponent({ type, companyPlan }: GoogleAdComponentProps) {
   // If subscriber, never show any ads
   if (companyPlan !== "free") {
     return null;
   }
+
+  // State to hold dynamic Ad Settings from Firestore
+  const [adSettings, setAdSettings] = useState({
+    enabled: true,
+    provider: "manual" as "manual" | "adsense"
+  });
 
   const [campaign, setCampaign] = useState(AD_CAMPAIGNS[0]);
   const [closed, setClosed] = useState(false);
@@ -50,11 +80,29 @@ export default function GoogleAdComponent({ type, companyPlan }: GoogleAdCompone
   const [timeLeft, setTimeLeft] = useState(15);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Pick a random campaign on mount
+  // Sync global ad settings from Firestore in real-time
   useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * AD_CAMPAIGNS.length);
-    setCampaign(AD_CAMPAIGNS[randomIndex]);
+    const adSettingsRef = doc(db, "settings", "ad_settings");
+    const unsub = onSnapshot(adSettingsRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setAdSettings({
+          enabled: data.enabled !== false,
+          provider: data.provider || "manual"
+        });
+      }
+    }, (error) => {
+      console.warn("Gracefully ignored ad settings loading: using offline defaults.", error.message);
+    });
+    return () => unsub();
   }, []);
+
+  // Pick a random campaign on mount/provider change
+  useEffect(() => {
+    const campaignsPool = adSettings.provider === "adsense" ? ADSENSE_CAMPAIGNS : AD_CAMPAIGNS;
+    const randomIndex = Math.floor(Math.random() * campaignsPool.length);
+    setCampaign(campaignsPool[randomIndex]);
+  }, [adSettings.provider]);
 
   // Handle countdown for video ads
   useEffect(() => {
@@ -89,17 +137,26 @@ export default function GoogleAdComponent({ type, companyPlan }: GoogleAdCompone
     }
   };
 
-  if (closed) return null;
+  // If ads are stopped globally, return null
+  if (!adSettings.enabled || closed) {
+    return null;
+  }
+
+  const isAdSense = adSettings.provider === "adsense";
 
   return (
     <div className="w-full font-sans animate-fadeIn">
       {type === "banner" ? (
         /* ================= BANNER AD STYLE ================= */
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-xs relative overflow-hidden flex flex-col md:flex-row items-center gap-4">
+        <div className={`border rounded-3xl p-4 shadow-xs relative overflow-hidden flex flex-col md:flex-row items-center gap-4 transition-all duration-300 ${
+          isAdSense 
+            ? "bg-amber-50/25 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/50" 
+            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+        }`}>
           {/* Ad Label */}
           <div className="absolute top-2 right-2 flex items-center gap-1.5 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-            <span>Ads by Google</span>
-            <AlertCircle className="w-3 h-3 text-slate-400" />
+            <span>{isAdSense ? "Ads by Google AdSense" : "Ads by Google"}</span>
+            <AlertCircle className={`w-3 h-3 ${isAdSense ? "text-amber-500" : "text-slate-400"}`} />
             <button 
               onClick={() => setClosed(true)} 
               className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition cursor-pointer text-slate-400 hover:text-slate-600"
@@ -121,7 +178,7 @@ export default function GoogleAdComponent({ type, companyPlan }: GoogleAdCompone
 
           {/* Ad Details */}
           <div className="flex-1 text-center md:text-left space-y-1 pr-6">
-            <div className="text-[9px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider">
+            <div className={`text-[9px] font-bold uppercase tracking-wider ${isAdSense ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 dark:text-indigo-400"}`}>
               {campaign.advertiser}
             </div>
             <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 leading-tight">
@@ -137,7 +194,11 @@ export default function GoogleAdComponent({ type, companyPlan }: GoogleAdCompone
             href={campaign.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full md:w-auto shrink-0 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black rounded-2xl text-center transition flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/10 cursor-pointer"
+            className={`w-full md:w-auto shrink-0 px-5 py-2.5 text-white text-[11px] font-black rounded-2xl text-center transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer ${
+              isAdSense
+                ? "bg-amber-600 hover:bg-amber-700 shadow-amber-500/10"
+                : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/10"
+            }`}
           >
             {campaign.ctaText}
             <ExternalLink className="w-3 h-3" />
@@ -145,12 +206,22 @@ export default function GoogleAdComponent({ type, companyPlan }: GoogleAdCompone
         </div>
       ) : (
         /* ================= COMPACT NON-OBTRUSIVE VIDEO AD STYLE ================= */
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl space-y-3 relative font-sans">
+        <div className={`border rounded-3xl overflow-hidden shadow-xl space-y-3 relative font-sans transition-all duration-300 ${
+          isAdSense 
+            ? "bg-slate-900 border-amber-500/30" 
+            : "bg-slate-900 border-slate-800"
+        }`}>
           {/* Ad Label & Header Controls */}
           <div className="p-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="bg-amber-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-sm uppercase tracking-wider">স্পন্সরড ভিডিও</span>
-              <span className="text-[10px] text-slate-400 font-bold">Google AdManager</span>
+              <span className={`text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-sm uppercase tracking-wider ${
+                isAdSense ? "bg-amber-500" : "bg-indigo-500 text-white"
+              }`}>
+                {isAdSense ? "গুগল স্পন্সরড" : "স্পন্সরড ভিডিও"}
+              </span>
+              <span className="text-[10px] text-slate-400 font-bold">
+                {isAdSense ? "Google AdSense Video" : "Google AdManager"}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               {timeLeft > 0 ? (
@@ -196,7 +267,11 @@ export default function GoogleAdComponent({ type, companyPlan }: GoogleAdCompone
               {/* Bottom Details & CTA Overlay */}
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <span className="text-[9px] text-indigo-400 font-extrabold uppercase tracking-widest">{campaign.advertiser}</span>
+                  <span className={`text-[9px] font-extrabold uppercase tracking-widest ${
+                    isAdSense ? "text-amber-400" : "text-indigo-400"
+                  }`}>
+                    {campaign.advertiser}
+                  </span>
                   <h4 className="text-xs font-black text-white leading-tight">{campaign.title}</h4>
                   <p className="text-[10px] text-slate-300 leading-normal line-clamp-1 font-semibold">{campaign.description}</p>
                 </div>
@@ -207,7 +282,11 @@ export default function GoogleAdComponent({ type, companyPlan }: GoogleAdCompone
                     href={campaign.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black rounded-xl transition flex items-center gap-1 shadow-md shadow-indigo-600/30 cursor-pointer"
+                    className={`px-4 py-2 text-white text-[10px] font-black rounded-xl transition flex items-center gap-1 shadow-md cursor-pointer ${
+                      isAdSense 
+                        ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/30 text-slate-950" 
+                        : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30"
+                    }`}
                   >
                     <span>{campaign.ctaText}</span>
                     <ExternalLink className="w-3 h-3" />

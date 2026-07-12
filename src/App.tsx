@@ -18,11 +18,12 @@ import SettingsView from "./components/SettingsView";
 import ActivityView from "./components/ActivityView";
 import SubscriptionRequestsView from "./components/SubscriptionRequestsView";
 import DepositWithdrawView from "./components/DepositWithdrawView";
+import AdManagementView from "./components/AdManagementView";
 import { motion, AnimatePresence } from "motion/react";
 import { Download, X, Smartphone, Sparkles } from "lucide-react";
 import InstallGuideModal from "./components/InstallGuideModal";
 
-type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw";
+type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw" | "ad-management";
 
 export default function App() {
   const [authStateLoading, setAuthStateLoading] = useState(true);
@@ -53,24 +54,7 @@ export default function App() {
   }, [theme]);
 
   // Mobile bottom navigation bar and FAB visibility state
-  const [isNavVisible, setIsNavVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      // Hide on scroll down, show on scroll up
-      if (currentScrollY > lastScrollY && currentScrollY > 60) {
-        setIsNavVisible(false);
-      } else {
-        setIsNavVisible(true);
-      }
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
+  const isNavVisible = true;
 
   // Router-like state variables
   const [currentView, setCurrentView] = useState<RouteView>("login");
@@ -708,11 +692,21 @@ export default function App() {
               onNavigate={handleNavigate}
             />
           )}
+
+          {currentView === "ad-management" && currentUser && (
+            <AdManagementView
+              currentUser={currentUser}
+              onNavigate={handleNavigate}
+              language={language}
+            />
+          )}
         </motion.div>
       </AnimatePresence>
 
       {/* Global Powered by NagorikeIT Footer */}
-      <footer className="w-full py-3 mt-auto border-t border-slate-200/50 dark:border-slate-800/40 flex flex-col items-center justify-center gap-0.5 bg-slate-50/50 dark:bg-slate-950/20 backdrop-blur-sm">
+      <footer className={`w-full pt-3 mt-auto border-t border-slate-200/50 dark:border-slate-800/40 flex flex-col items-center justify-center gap-0.5 bg-slate-50/50 dark:bg-slate-950/20 backdrop-blur-sm ${
+        currentUser && (currentUser.status === "active" || currentUser.role === "admin") ? "pb-20 md:pb-3" : "pb-3"
+      }`}>
         <a 
           href="https://www.nagorike.com" 
           target="_blank" 
@@ -724,9 +718,6 @@ export default function App() {
         </a>
         <p className="text-[9px] text-slate-400/80 dark:text-slate-500/80">নাগরিক আইটি সেবা কর্তৃক সর্বস্বত্ব সংরক্ষিত</p>
       </footer>
-      {currentUser && (currentUser.status === "active" || currentUser.role === "admin") && (
-        <div className="h-16 md:hidden shrink-0" />
-      )}
     </div>
   );
 }
