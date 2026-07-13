@@ -115,6 +115,19 @@
         "readBy": { "type": "array" }
       },
       "required": ["title", "body", "senderId", "senderName", "senderRole", "targetType", "createdAt"]
+    },
+    "Slide": {
+      "title": "Slide",
+      "description": "Custom slider and banner details managed by admins to display on the main page slider.",
+      "type": "object",
+      "properties": {
+        "imageUrl": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "actionUrl": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["imageUrl", "title", "subtitle"]
     }
   },
   "firestore": {
@@ -141,6 +154,10 @@
     "/installments/{installmentId}": {
       "schema": "Installment",
       "description": "Active purchase installment plans for land, plots, or flats."
+    },
+    "/slides/{slideId}": {
+      "schema": "Slide",
+      "description": "Collection of custom slides and banner images shown to users."
     }
   }
 }

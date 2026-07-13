@@ -1,0 +1,18 @@
+# Treat Gradle wrapper jar explicitly as binary to prevent line ending corruption
+android/gradle/wrapper/gradle-wrapper.jar binary
+
+# Set line endings to LF for scripts
+android/gradlew text eol=lf
+*.sh text eol=lf
+
+# Set line endings to CRLF for Windows batch files
+android/gradlew.bat text eol=crlf
+*.bat text eol=crlf
+
+# Standard Git attributes for common files
+* text=auto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

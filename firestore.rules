@@ -95,5 +95,14 @@ service cloud.firestore {
       allow get: if true;
       allow create, update: if isSignedIn();
     }
+
+    // Slides collection
+    match /slides/{slideId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (
+        request.auth.token.email == 'nagorikeitsheba@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
   }
 }
