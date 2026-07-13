@@ -19,28 +19,26 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Remove corrupted JAR
-        run: |
-          rm -f android/gradle/wrapper/gradle-wrapper.jar
-          ls -la android/gradle/wrapper/
+      - name: Install Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 8.6
 
-      - name: Download Gradle wrapper JAR directly
+      - name: Remove old JAR and regenerate
         run: |
-          mkdir -p android/gradle/wrapper
-          cd android/gradle/wrapper
-          # Download the specific version JAR from Gradle services
-          curl -L -o gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar
-          ls -lh gradle-wrapper.jar
-          file gradle-wrapper.jar
+          cd android
+          rm -f gradle/wrapper/gradle-wrapper.jar
+          gradle wrapper --gradle-version 8.6
+          ls -lh gradle/wrapper/gradle-wrapper.jar
 
-      - name: Verify JAR integrity
-        run: |
-          cd android/gradle/wrapper
-          unzip -t gradle-wrapper.jar | head -20 || echo "Verification passed"
-
-      - name: Commit and push
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit changes
+        run: |
           git add android/gradle/wrapper/gradle-wrapper.jar
-          git diff --cached --quiet || (git commit -m "fix: Replace corrupted gradle wrapper jar" && git push)
+          git add android/gradle/wrapper/gradle-wrapper.properties
+          git commit -m "fix: Regenerate gradle wrapper jar" || echo "No changes"
+          git push
