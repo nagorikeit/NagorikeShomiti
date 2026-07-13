@@ -242,7 +242,7 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
       <header className="flex justify-between items-center p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md">
         <div className="flex items-center gap-2">
           <Landmark className="w-5 h-5 text-white animate-pulse" />
-          <h1 className="text-lg font-bold tracking-tight">A S Embroidery - সমিতি ম্যানেজার</h1>
+          <h1 className="text-lg font-bold tracking-tight">সমিতি ম্যানেজার</h1>
         </div>
         <button
           onClick={() => {
@@ -555,7 +555,7 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
 
       {/* Footer */}
       <footer className="bg-slate-100 text-center py-4 text-slate-500 text-xs border-t border-slate-200">
-        © 2026 A S Embroidery - সমিতি ম্যানেজার
+        © 2026 সমিতি ম্যানেজার
       </footer>
     </div>
   );

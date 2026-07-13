@@ -1,0 +1,8 @@
+{
+	"appId": "com.nagorike.somiti",
+	"appName": "নগরীক সমিতি",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	}
+}

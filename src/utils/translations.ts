@@ -3,7 +3,7 @@ export type Language = "bn" | "en";
 export const translations = {
   bn: {
     // Common / Global Header
-    appName: "A S Embroidery - সমিতি ম্যানেজার",
+    appName: "সমিতি ম্যানেজার",
     dashboard: "ড্যাশবোর্ড",
     transactions: "লেনদেন",
     memberList: "সদস্য তালিকা",
@@ -262,7 +262,7 @@ export const translations = {
   },
   en: {
     // Common / Global Header
-    appName: "A S Embroidery - Association Manager",
+    appName: "Somiti Manager - Association Manager",
     dashboard: "Dashboard",
     transactions: "Transactions",
     memberList: "Member List",
