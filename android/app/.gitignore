@@ -1,2 +1,6 @@
 /build/*
 !/build/.npmkeep
+!/build/outputs/
+!/build/outputs/bundle/
+!/build/outputs/apk/
+!/build/outputs/bundle/**/*.jar
