@@ -50,7 +50,7 @@ jobs:
       - name: Download Clean Gradle Wrapper JAR
         run: |
           mkdir -p android/gradle/wrapper
-          curl -sSL "https://raw.githubusercontent.com/gradle/gradle/main/gradle/wrapper/gradle-wrapper.jar" -o android/gradle/wrapper/gradle-wrapper.jar
+          curl -sSL "https://raw.githubusercontent.com/gradle/gradle/v8.13.0/gradle/wrapper/gradle-wrapper.jar" -o android/gradle/wrapper/gradle-wrapper.jar
 
       # Step 8: Make Gradle wrapper script executable
       - name: Make Gradle Wrapper Executable
