@@ -211,7 +211,12 @@ export default function DepositWithdrawView({ currentUser, onNavigate, navigatio
   useEffect(() => {
     if (navigationParams) {
       if (navigationParams.trxFlow) {
-        setTrxFlow(navigationParams.trxFlow);
+        if (navigationParams.trxFlow === "OUT") {
+          onNavigate("cashout");
+          return;
+        } else {
+          setTrxFlow(navigationParams.trxFlow);
+        }
       }
       if (navigationParams.trxType) {
         setTrxType(navigationParams.trxType);
@@ -232,8 +237,12 @@ export default function DepositWithdrawView({ currentUser, onNavigate, navigatio
   }, [navigationParams]);
 
   const handleFlowToggle = (flow: "IN" | "OUT") => {
-    setTrxFlow(flow);
-    setToastMsg(null);
+    if (flow === "OUT") {
+      onNavigate("cashout");
+    } else {
+      setTrxFlow("IN");
+      setToastMsg(null);
+    }
   };
 
   const handleCreateTransaction = async (e: FormEvent) => {

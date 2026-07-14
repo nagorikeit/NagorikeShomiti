@@ -189,7 +189,19 @@ export default function GlobalHeader({
                 }`}
               >
                 <Plus className="w-4 h-4 text-indigo-500" />
-                {language === "bn" ? "জমা বা উত্তোলন" : "Deposit/Withdrawal"}
+                {language === "bn" ? "জমা বা ডিপোজিট" : "Deposit"}
+              </button>
+
+              <button
+                onClick={() => onNavigate("cashout")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  currentView === "cashout"
+                    ? "bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                }`}
+              >
+                <Smartphone className="w-4 h-4 text-pink-500" />
+                {language === "bn" ? "ক্যাশ আউট" : "Cash Out"}
               </button>
 
               {currentUser.role !== "member" && (
@@ -348,7 +360,17 @@ export default function GlobalHeader({
                         }}
                         className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
                       >
-                        <Plus className="w-3.5 h-3.5 text-indigo-500" /> {language === "bn" ? "জমা বা উত্তোলন" : "Deposit or Withdrawal"}
+                        <Plus className="w-3.5 h-3.5 text-indigo-500" /> {language === "bn" ? "জমা বা ডিপোজিট" : "Deposit"}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          onNavigate("cashout");
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
+                      >
+                        <Smartphone className="w-3.5 h-3.5 text-pink-500" /> {language === "bn" ? "ক্যাশ আউট (Cash Out)" : "Cash Out"}
                       </button>
 
                       {currentUser.role !== "member" && (
@@ -616,7 +638,19 @@ export default function GlobalHeader({
                     }`}
                   >
                     <Plus className={`w-5 h-5 transition-transform ${currentView === "deposit-withdraw" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
-                    <span className="text-[9px] tracking-tight">{language === "bn" ? "জমা বা উত্তোলন" : "Deposit/Withdraw"}</span>
+                    <span className="text-[9px] tracking-tight">{language === "bn" ? "ডিপোজিট" : "Deposit"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("cashout")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "cashout"
+                        ? "text-pink-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <Smartphone className={`w-5 h-5 transition-transform ${currentView === "cashout" ? "scale-110 text-pink-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{language === "bn" ? "ক্যাশ আউট" : "Cash Out"}</span>
                   </button>
 
                   <button

@@ -19,11 +19,12 @@ import ActivityView from "./components/ActivityView";
 import SubscriptionRequestsView from "./components/SubscriptionRequestsView";
 import DepositWithdrawView from "./components/DepositWithdrawView";
 import AdManagementView from "./components/AdManagementView";
+import CashOutView from "./components/CashOutView";
 import { motion, AnimatePresence } from "motion/react";
 import { Download, X, Smartphone, Sparkles } from "lucide-react";
 import InstallGuideModal from "./components/InstallGuideModal";
 
-type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw" | "ad-management";
+type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw" | "ad-management" | "cashout";
 
 export default function App() {
   const [authStateLoading, setAuthStateLoading] = useState(true);
@@ -686,6 +687,14 @@ export default function App() {
 
           {currentView === "deposit-withdraw" && (
             <DepositWithdrawView
+              currentUser={currentUser}
+              onNavigate={handleNavigate}
+              navigationParams={navigationParams}
+            />
+          )}
+
+          {currentView === "cashout" && (
+            <CashOutView
               currentUser={currentUser}
               onNavigate={handleNavigate}
               navigationParams={navigationParams}
