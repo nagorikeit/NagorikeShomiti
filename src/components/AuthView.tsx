@@ -154,12 +154,14 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
       return;
     }
 
-    if (email.trim()) {
-      const validEmail = email.includes("@") && email.includes(".");
-      if (!validEmail) {
-        showToast(language === "bn" ? "❌ সঠিক ইমেইল এড্রেস দিন" : "❌ Enter a valid email address", "error");
-        return;
-      }
+    if (!email.trim()) {
+      showToast(language === "bn" ? "❌ অনুগ্রহ করে একটি ইমেইল এড্রেস দিন" : "❌ Please enter an email address", "error");
+      return;
+    }
+    const validEmail = email.includes("@") && email.includes(".");
+    if (!validEmail) {
+      showToast(language === "bn" ? "❌ সঠিক ইমেইল এড্রেস দিন" : "❌ Enter a valid email address", "error");
+      return;
     }
 
     if (password.length < 6) {
@@ -641,7 +643,7 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
                   </div>
 
                   <div>
-                    <label className="text-xs text-slate-600 font-bold ml-1">ইমেইল (ঐচ্ছিক)</label>
+                    <label className="text-xs text-slate-600 font-bold ml-1">ইমেইল *</label>
                     <div className="relative mt-1">
                       <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                       <input
@@ -649,7 +651,8 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm transition"
-                        placeholder="example@gmail.com (না দিলে মোবাইল নম্বর দিয়ে তৈরি হবে)"
+                        placeholder="example@gmail.com"
+                        required
                       />
                     </div>
                   </div>
