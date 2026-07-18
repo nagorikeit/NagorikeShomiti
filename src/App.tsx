@@ -133,6 +133,10 @@ export default function App() {
             // Pending/deactive users can only view their own profile
             setCurrentView("profile");
             setNavigationParams(null);
+          } else if (u.requirePasswordChange) {
+            // Users requiring password change are locked to the profile view
+            setCurrentView("profile");
+            setNavigationParams(null);
           } else {
             // Active users or Admins default to dashboard if they are coming from login
             setCurrentView((prev) => (prev === "login" ? "dashboard" : prev));
@@ -530,13 +534,41 @@ export default function App() {
       if (currentUser.role === "admin" || currentUser.role === "company") {
         try {
           const usersSnap = await getDocs(collection(db, "users"));
+          const usersMap = new Map(usersSnap.docs.map(docSnap => [docSnap.id, docSnap.data()]));
+          
           for (const d of usersSnap.docs) {
             const data = d.data();
-            if (data.mobile && data.email) {
+            if (data.mobile) {
+              const companyData = data.companyId ? usersMap.get(data.companyId) : null;
+              const companyWhatsapp = companyData?.whatsapp || companyData?.mobile || "";
+              const memberResetSetting = companyData?.memberResetSetting || "both";
+
               const phoneRef = doc(db, "phone_to_email", data.mobile);
               const phoneSnap = await getDoc(phoneRef);
-              if (!phoneSnap.exists() || phoneSnap.data().email !== data.email) {
-                await setDoc(phoneRef, { email: data.email, userId: d.id }, { merge: true });
+              const existingMapping = phoneSnap.exists() ? phoneSnap.data() : null;
+              
+              if (
+                !existingMapping || 
+                existingMapping.email !== (data.email || "") || 
+                !existingMapping.name || 
+                !existingMapping.password || 
+                !existingMapping.firebaseAuthEmail || 
+                !existingMapping.role ||
+                existingMapping.companyId !== (data.companyId || "") ||
+                existingMapping.companyWhatsapp !== companyWhatsapp ||
+                existingMapping.memberResetSetting !== memberResetSetting
+              ) {
+                await setDoc(phoneRef, {
+                  email: data.email || "",
+                  firebaseAuthEmail: data.firebaseAuthEmail || (data.email && data.email.includes("@") ? data.email : `${data.mobile}@samitymanager.com`),
+                  userId: d.id,
+                  name: data.name || "",
+                  password: data.password || "",
+                  role: data.role || "member",
+                  companyId: data.companyId || "",
+                  companyWhatsapp: companyWhatsapp,
+                  memberResetSetting: memberResetSetting,
+                }, { merge: true });
               }
             }
           }
@@ -553,6 +585,11 @@ export default function App() {
       const isActive = currentUser.status === "active";
       const isAdmin = currentUser.role === "admin";
       if (!isActive && !isAdmin && view !== "profile") {
+        setNavigationParams(null);
+        setCurrentView("profile");
+        return;
+      }
+      if (currentUser.requirePasswordChange && view !== "profile") {
         setNavigationParams(null);
         setCurrentView("profile");
         return;

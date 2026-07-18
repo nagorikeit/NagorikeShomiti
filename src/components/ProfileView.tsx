@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { doc, getDoc, updateDoc, collection, getDocs, onSnapshot, addDoc } from "firebase/firestore";
-import { updatePassword, updateProfile, updateEmail } from "firebase/auth";
-import { db, auth } from "../firebase";
+import { doc, getDoc, updateDoc, collection, getDocs, onSnapshot, addDoc, setDoc } from "firebase/firestore";
+import { updatePassword, updateProfile, updateEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { db, auth, secondaryAuth } from "../firebase";
 import { User, HistoryEntry } from "../types";
 import {
   STATUS_LABELS,
@@ -74,6 +74,7 @@ export default function ProfileView({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
+  const [passwordState, setPasswordState] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [dob, setDob] = useState("");
   const [address, setAddress] = useState("");
@@ -117,6 +118,7 @@ export default function ProfileView({
   const [billingPhone, setBillingPhone] = useState("");
   const [billingTxId, setBillingTxId] = useState("");
   const [billingSubmitting, setBillingSubmitting] = useState(false);
+  const [requirePassChange, setRequirePassChange] = useState(true);
 
   const isOwnProfile = !targetId || targetId === currentUser.docId;
   const isAdminOrCompany = currentUser.role === "admin" || currentUser.role === "company";
@@ -161,6 +163,11 @@ export default function ProfileView({
           setGuardianName(d.guardianName || "");
           setGuardianNid(d.guardianNid || "");
           setGuardianAddress(d.guardianAddress || "");
+          if (isOwnProfile) {
+            setPasswordState(d.password || "");
+          } else {
+            setPasswordState("");
+          }
 
           if (d.role !== "company") {
             // Fetch history & calculate arrears
@@ -469,6 +476,10 @@ export default function ProfileView({
         guardianAddress: guardianAddress.trim(),
       };
 
+      if (isOwnProfile) {
+        updateObj.password = passwordState;
+      }
+
       if (role === "company" || targetUser.role === "company") {
         updateObj.companyName = companyName.trim();
         updateObj.companyAddress = companyAddress.trim();
@@ -495,18 +506,89 @@ export default function ProfileView({
               }
             }
           }
-          try {
-            await updateProfile(user, {
-              displayName: name.trim(),
-              photoURL: profilePic || undefined,
-            });
-          } catch (err) {
-            console.warn("Auth profile update failed:", err);
+          if (passwordState && passwordState !== targetUser?.password) {
+            try {
+              await updatePassword(user, passwordState);
+              updateObj.requirePasswordChange = false;
+            } catch (err: any) {
+              console.warn("Auth password update failed:", err);
+              if (err.code === "auth/requires-recent-login") {
+                showToast("❌ নিরাপত্তার স্বার্থে পুনরায় লগইন করে পাসওয়ার্ড পরিবর্তন করতে হবে।", "error");
+                setSaving(false);
+                return;
+              }
+            }
           }
+        }
+      } else {
+        // Admin or Company editing member profile
+        const trimmedPass = passwordState.trim();
+        if (trimmedPass) {
+          const memberEmail = targetUser?.firebaseAuthEmail || targetUser?.email || `${normMobile}@samitymanager.com`;
+          const oldPassword = targetUser?.password || "";
+          if (oldPassword) {
+            try {
+              const secCred = await signInWithEmailAndPassword(secondaryAuth, memberEmail, oldPassword);
+              await updatePassword(secCred.user, trimmedPass);
+              await signOut(secondaryAuth);
+              console.log("Successfully updated password in Firebase Auth via secondaryAuth");
+            } catch (authErr: any) {
+              console.warn("Could not update secondary password via login, trying creation:", authErr);
+              if (authErr.code === "auth/user-not-found" || authErr.code === "auth/invalid-credential" || authErr.code === "auth/cannot-delete-owner") {
+                try {
+                  await createUserWithEmailAndPassword(secondaryAuth, memberEmail, trimmedPass);
+                  await signOut(secondaryAuth);
+                } catch (createErr) {
+                  console.warn("Failed to create secondaryAuth account on-demand:", createErr);
+                }
+              }
+            }
+          } else {
+            try {
+              await createUserWithEmailAndPassword(secondaryAuth, memberEmail, trimmedPass);
+              await signOut(secondaryAuth);
+            } catch (createErr) {
+              console.warn("Failed to create secondaryAuth account for new password:", createErr);
+            }
+          }
+          updateObj.password = trimmedPass;
+          updateObj.requirePasswordChange = requirePassChange;
         }
       }
 
       await updateDoc(doc(db, "users", activeId), updateObj);
+
+      // Sync phone mapping
+      try {
+        const roleVal = targetUser?.role || (activeId === currentUser.docId ? currentUser.role : "member");
+        const companyIdVal = targetUser?.companyId || (roleVal === "member" ? currentUser?.docId : "") || "";
+        const isMemberVal = roleVal === "member";
+        const companyWhatsappVal = isMemberVal ? (currentUser?.whatsapp || currentUser?.mobile || "") : "";
+        const memberResetSettingVal = isMemberVal ? (currentUser?.memberResetSetting || "both") : "";
+
+        const phoneRef = doc(db, "phone_to_email", normMobile);
+        const mappingUpdate: Record<string, any> = {
+          email: email.trim(),
+          firebaseAuthEmail: (targetUser as any)?.firebaseAuthEmail || (email.trim() && email.trim().includes("@") ? email.trim() : `${normMobile}@samitymanager.com`),
+          userId: activeId,
+          name: name.trim(),
+          role: roleVal,
+          companyId: companyIdVal,
+          companyWhatsapp: companyWhatsappVal,
+          memberResetSetting: memberResetSettingVal,
+        };
+        
+        if (isOwnProfile) {
+          mappingUpdate.password = passwordState;
+        } else if (passwordState.trim()) {
+          mappingUpdate.password = passwordState.trim();
+        }
+
+        await setDoc(phoneRef, mappingUpdate, { merge: true });
+      } catch (err) {
+        console.error("Error setting phone_to_email mapping on save:", err);
+      }
+
       showToast("✅ আপডেট সফল হয়েছে!");
       setTimeout(() => location.reload(), 1200);
     } catch (e) {
@@ -739,6 +821,22 @@ export default function ProfileView({
           }`}
         >
           {toast.msg}
+        </div>
+      )}
+
+      {isOwnProfile && currentUser?.requirePasswordChange && (
+        <div className="max-w-md mx-auto px-4 mt-4">
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-3xl flex items-start gap-3 shadow-sm">
+            <div className="p-2 bg-amber-100 rounded-2xl text-amber-600 shrink-0 mt-0.5 animate-pulse">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-extrabold text-amber-900">⚠️ পাসওয়ার্ড পরিবর্তন করুন!</h4>
+              <p className="text-[10px] text-amber-700 leading-normal mt-1 font-bold">
+                আপনার পাসওয়ার্ডটি বর্তমানে ওয়ান-টাইম পাসওয়ার্ড (OTP) হিসেবে সেট করা আছে। নিরাপত্তার স্বার্থে, অনুগ্রহ করে নিচের "লগইন পাসওয়ার্ড" ফিল্ডে আপনার পছন্দের একটি নিরাপদ নতুন পাসওয়ার্ড টাইপ করে প্রোফাইলটি আপডেট/সেভ করুন। নতুন পাসওয়ার্ড সেট না করা পর্যন্ত আপনি অন্য কোনো পেজে যেতে পারবেন না।
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1437,6 +1535,34 @@ export default function ProfileView({
                     className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 disabled:opacity-75"
                   />
                 </div>
+
+                {(isOwnProfile || (isAdminOrCompany && targetUser?.role === "member")) && (
+                  <div>
+                    <label className="text-[9px] font-bold text-indigo-500 mb-1 ml-1 block">লগইন পাসওয়ার্ড</label>
+                    <input
+                      type="text"
+                      disabled={!editable}
+                      value={passwordState}
+                      onChange={(e) => setPasswordState(e.target.value)}
+                      className="w-full bg-indigo-50/30 border border-indigo-100 px-3.5 py-2.5 rounded-xl text-xs font-bold text-indigo-700 focus:bg-white focus:border-indigo-500 disabled:opacity-75 outline-none transition-all"
+                      placeholder={isOwnProfile ? "লগইন পাসওয়ার্ড লিখুন" : "•••••••• (নিরাপত্তার স্বার্থে মেম্বার পাসওয়ার্ড লুকানো রয়েছে, পরিবর্তন করতে নতুন পাসওয়ার্ড লিখুন)"}
+                    />
+                    {!isOwnProfile && editable && (
+                      <div className="mt-2.5 flex items-center gap-2 bg-indigo-50/40 p-2.5 rounded-2xl border border-indigo-100">
+                        <input
+                          type="checkbox"
+                          id="requirePassChange"
+                          checked={requirePassChange}
+                          onChange={(e) => setRequirePassChange(e.target.checked)}
+                          className="rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 w-4 h-4 cursor-pointer"
+                        />
+                        <label htmlFor="requirePassChange" className="text-[10px] font-extrabold text-indigo-600 cursor-pointer select-none leading-normal">
+                          🔐 এটি ওয়ান-টাইম পাসওয়ার্ড (OTP) হিসেবে চিহ্নিত করুন (লগইন করে মেম্বারের জন্য পাসওয়ার্ড পরিবর্তন বাধ্যতামূলক)
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* NID Documents */}
                 <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">

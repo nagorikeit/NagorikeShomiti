@@ -43,6 +43,10 @@ export interface User {
   guardianName?: string;
   guardianNid?: string;
   guardianAddress?: string;
+  password?: string;
+  firebaseAuthEmail?: string;
+  memberResetSetting?: "both" | "email" | "mobile" | "disabled" | string;
+  requirePasswordChange?: boolean;
 }
 
 export interface HistoryEntry {

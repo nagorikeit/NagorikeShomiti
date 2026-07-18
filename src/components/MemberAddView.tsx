@@ -152,8 +152,10 @@ export default function MemberAddView({
     const validPhone = /^01[3-9]\d{8}$/.test(normalizedPhone);
     if (!validPhone) errs.phone = "সঠিক বাংলাদেশি মোবাইল নম্বর দিন (১১ সংখ্যা)";
 
-    const validEmail = email && email.includes("@") && email.includes(".");
-    if (!validEmail) errs.email = "সঠিক ইমেইল দিন";
+    if (email.trim()) {
+      const validEmail = email.includes("@") && email.includes(".");
+      if (!validEmail) errs.email = "সঠিক ইমেইল দিন";
+    }
 
     if (!accountType) errs.accountType = "অ্যাকাউন্টের ধরন নির্বাচন করুন";
     if (!investType) errs.investType = "কিস্তির ধরন নির্বাচন করুন";
@@ -194,10 +196,11 @@ export default function MemberAddView({
     setLoading(true);
     try {
       const normalizedPhone = normalizePhoneNumber(phone);
+      const memberEmail = email.trim() ? email.trim() : `${normalizedPhone}@samitymanager.com`;
 
       // 1. Check if email already used in firebase
       // Create user with secondary Auth to prevent logging current company/admin out
-      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, memberEmail, password);
       const uid = userCredential.user.uid;
 
       // Sign out of secondary auth session immediately
@@ -212,12 +215,15 @@ export default function MemberAddView({
         return "M" + nextId.toString().padStart(3, "0");
       });
 
+      const cleanEmail = email.trim() ? email.trim() : "";
+
       // 3. Save to Firestore
       await setDoc(doc(db, "users", memberId), {
         uid: uid,
         userId: memberId,
         name: name,
-        email: email,
+        email: cleanEmail,
+        firebaseAuthEmail: memberEmail,
         mobile: normalizedPhone,
         dob: dob,
         nidNumber: nidNumber,
@@ -237,13 +243,21 @@ export default function MemberAddView({
         guardianName: guardianName,
         guardianNid: guardianNid,
         guardianAddress: guardianAddress,
+        password: password, // Store plaintext password for lookup/recovery
       });
 
       // Write phone to email mapping for easy lookup before login
       try {
         await setDoc(doc(db, "phone_to_email", normalizedPhone), {
-          email: email,
+          email: cleanEmail,
+          firebaseAuthEmail: memberEmail,
           userId: memberId,
+          name: name,
+          password: password,
+          role: "member",
+          companyId: currentUser.docId,
+          companyWhatsapp: currentUser.whatsapp || currentUser.mobile || "",
+          memberResetSetting: currentUser.memberResetSetting || "both",
         });
       } catch (e) {
         console.error("Error setting phone_to_email mapping in MemberAddView:", e);
@@ -417,7 +431,7 @@ export default function MemberAddView({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-slate-600 font-semibold mb-1">ইমেইল *</label>
+                  <label className="block text-xs text-slate-600 font-semibold mb-1">ইমেইল (ঐচ্ছিক)</label>
                   <input
                     type="email"
                     value={email}
@@ -425,7 +439,7 @@ export default function MemberAddView({
                     className={`w-full px-4 py-2.5 rounded-xl border outline-none text-sm font-medium transition ${
                       errors.email ? "border-rose-400 ring-1 ring-rose-400" : "border-slate-200 focus:border-blue-400"
                     }`}
-                    placeholder="example@gmail.com"
+                    placeholder="example@gmail.com (না দিলে মোবাইল নম্বর দিয়ে তৈরি হবে)"
                   />
                   {errors.email && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.email}</p>}
                 </div>

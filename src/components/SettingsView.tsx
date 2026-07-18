@@ -89,6 +89,15 @@ export default function SettingsView({
   const [loadingGateway, setLoadingGateway] = useState(false);
   const [savingGateway, setSavingGateway] = useState(false);
 
+  // Member Reset Setting State
+  const [memberResetSetting, setMemberResetSetting] = useState<string>("both");
+
+  useEffect(() => {
+    if (currentUser) {
+      setMemberResetSetting(currentUser.memberResetSetting || "both");
+    }
+  }, [currentUser]);
+
   useEffect(() => {
     if (!currentUser) return;
     const fetchGatewaySettings = async () => {
@@ -186,6 +195,31 @@ export default function SettingsView({
       showToast("❌ সেভ করতে ব্যর্থ: " + err.message, "error");
     } finally {
       setSavingLimits(false);
+    }
+  };
+
+  const handleUpdateMemberResetSetting = async (val: string) => {
+    if (!currentUser) return;
+    try {
+      setMemberResetSetting(val);
+      const userRef = doc(db, "users", currentUser.docId);
+      await updateDoc(userRef, {
+        memberResetSetting: val
+      });
+      
+      // Log to activity
+      await addDoc(collection(db, "activity_logs"), {
+        userId: currentUser.docId,
+        userName: currentUser.name,
+        action: "MEMBER_RESET_SETTINGS_UPDATED",
+        details: `মেম্বার পাসওয়ার্ড রিসেট সেটিংস পরিবর্তন করে করা হয়েছে: ${val}`,
+        timestamp: serverTimestamp()
+      });
+
+      showToast("✅ মেম্বার পাসওয়ার্ড রিসেট সেটিংস আপডেট করা হয়েছে!");
+    } catch (err: any) {
+      console.error(err);
+      showToast("❌ সেটিংস আপডেট করা ব্যর্থ হয়েছে!", "error");
     }
   };
 
@@ -667,6 +701,59 @@ export default function SettingsView({
                 </button>
               </form>
             )}
+          </div>
+        )}
+
+        {/* Section: Company Member Password Reset Configuration */}
+        {isCompany && (
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-indigo-50 rounded-2xl text-indigo-600 shrink-0">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-xs font-extrabold text-slate-800">👥 মেম্বার পাসওয়ার্ড রিসেট সেটিংস</h3>
+                <p className="text-[10px] text-slate-400 leading-normal mt-0.5">
+                  আপনার সমিতির মেম্বাররা তাদের পাসওয়ার্ড কীভাবে রিসেট করতে পারবেন তা নির্ধারণ করুন।
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-1">
+              <div className="grid grid-cols-1 gap-2.5">
+                {[
+                  { value: "both", label: "ইমেইল এবং মোবাইল নাম্বার (ডিফল্ট)", desc: "মেম্বাররা ইমেইল ও মোবাইল উভয়ের মাধ্যমে নিজে নিজে পাসওয়ার্ড রিকভার করতে পারবেন।" },
+                  { value: "email", label: "শুধুমাত্র ইমেইল", desc: "মেম্বাররা শুধুমাত্র নিবন্ধিত ইমেইলের মাধ্যমে পাসওয়ার্ড রিসেট করতে পারবেন।" },
+                  { value: "mobile", label: "শুধুমাত্র মোবাইল নম্বর", desc: "মেম্বাররা শুধুমাত্র মোবাইল নম্বরের মাধ্যমে পাসওয়ার্ড রিকভার করতে পারবেন।" },
+                  { value: "disabled", label: "রিসেট অপশন বন্ধ রাখুন (🔒 নিরাপত্তার স্বার্থে)", desc: "নিজে নিজে পাসওয়ার্ড রিসেট বন্ধ থাকবে। পাসওয়ার্ড পরিবর্তন করতে সমিতির প্রধান অ্যাডমিনের সাথে যোগাযোগ করতে হবে।" }
+                ].map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => handleUpdateMemberResetSetting(item.value)}
+                    className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer ${
+                      memberResetSetting === item.value 
+                        ? "bg-indigo-50/50 border-indigo-500 shadow-sm" 
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100/50"
+                    }`}
+                  >
+                    <div className={`mt-0.5 w-4.5 h-4.5 rounded-full border flex items-center justify-center shrink-0 ${
+                      memberResetSetting === item.value 
+                        ? "border-indigo-600 bg-indigo-600 text-white" 
+                        : "border-slate-300 bg-white"
+                    }`}>
+                      {memberResetSetting === item.value && (
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">{item.label}</h4>
+                      <p className="text-[9px] text-slate-400 font-bold leading-normal mt-0.5">{item.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

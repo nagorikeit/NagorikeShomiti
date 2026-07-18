@@ -51,6 +51,12 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
   // Forgot password modal
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+  const [resetIdentifier, setResetIdentifier] = useState(""); // Can be email or phone
+  const [recoveryStep, setRecoveryStep] = useState<"IDENTIFIER" | "OTP" | "SHOW_PASS">("IDENTIFIER");
+  const [recoveredUser, setRecoveredUser] = useState<any>(null);
+  const [companyData, setCompanyData] = useState<any>(null);
+  const [otpInput, setOtpInput] = useState("");
+  const [generatedOtp, setGeneratedOtp] = useState("1234");
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -71,6 +77,21 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
       }
     } catch (e) {
       console.warn("Fast phone mapping lookup not available:", e);
+    }
+
+    // Direct construction fallback for standard format
+    if (/^01[3-9]\d{8}$/.test(normalized)) {
+      const constructedEmail = `${normalized}@samitymanager.com`;
+      try {
+        const q = query(collection(db, "users"), where("mobile", "==", normalized));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          return snap.docs[0].data().email as string || constructedEmail;
+        }
+      } catch (e) {
+        console.warn("Fallback query failed:", e);
+      }
+      return constructedEmail;
     }
 
     // Fallback if the mapping does not exist (e.g. legacy/unsynced users)
@@ -121,7 +142,7 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyName || !ownerName || !phone || !email || !password || !confirmPassword) {
+    if (!companyName || !ownerName || !phone || !password || !confirmPassword) {
       showToast(t.allFieldsRequired, "error");
       return;
     }
@@ -131,6 +152,14 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
     if (!validPhone) {
       showToast(t.phoneError, "error");
       return;
+    }
+
+    if (email.trim()) {
+      const validEmail = email.includes("@") && email.includes(".");
+      if (!validEmail) {
+        showToast(language === "bn" ? "❌ সঠিক ইমেইল এড্রেস দিন" : "❌ Enter a valid email address", "error");
+        return;
+      }
     }
 
     if (password.length < 6) {
@@ -153,8 +182,9 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
       // Every user registering via the signup page is a company and is pending initially
       const initialRole = "company";
       const initialStatus = "pending";
+      const companyEmail = email.trim() ? email.trim() : `${normalizedPhone}@samitymanager.com`;
 
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const cred = await createUserWithEmailAndPassword(auth, companyEmail, password);
 
       const newUserId = await runTransaction(db, async (transaction) => {
         const counterRef = doc(db, "counters", "userCounter");
@@ -164,24 +194,32 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
         return "C" + nextId.toString().padStart(3, "0");
       });
 
+      const cleanEmail = email.trim() ? email.trim() : "";
+
       await setDoc(doc(db, "users", newUserId), {
         uid: cred.user.uid,
         userId: newUserId,
         companyName: companyName,
         name: ownerName,
         mobile: normalizedPhone,
-        email: email,
+        email: cleanEmail,
+        firebaseAuthEmail: companyEmail,
         role: initialRole,
         status: initialStatus,
         joinedDate: Date.now(),
         createdAt: Date.now(),
+        password: password, // Store plaintext password for lookup/recovery
       });
 
       // Write phone to email mapping for easy lookup before login
       try {
         await setDoc(doc(db, "phone_to_email", normalizedPhone), {
-          email: email,
+          email: cleanEmail,
+          firebaseAuthEmail: companyEmail,
           userId: newUserId,
+          name: ownerName,
+          password: password,
+          role: initialRole,
         });
       } catch (e) {
         console.error("Error setting phone_to_email mapping:", e);
@@ -192,7 +230,7 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
     } catch (err: any) {
       console.error(err);
       if (err.code === "auth/email-already-in-use") {
-        showToast("❌ এই ইমেইলে আগেই অ্যাকাউন্ট আছে", "error");
+        showToast("❌ এই ইমেইলে বা মোবাইল নম্বরে আগেই অ্যাকাউন্ট আছে", "error");
       } else {
         showToast("❌ রেজিস্ট্রেশন ব্যর্থ হয়েছে", "error");
       }
@@ -201,20 +239,204 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
     }
   };
 
-  const handleResetPassword = async () => {
-    if (!resetEmail) {
-      showToast("ইমেইল দিন", "error");
+  const handleRecoverPassword = async () => {
+    if (!resetIdentifier.trim()) {
+      showToast(language === "bn" ? "মোবাইল নম্বর বা ইমেইল দিন" : "Please enter mobile number or email", "error");
       return;
     }
+
+    const trimmed = resetIdentifier.trim();
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, resetEmail.trim());
-      showToast("✅ ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে");
+      if (trimmed.includes("@")) {
+        // First check if a user with this email exists in Firestore
+        let userExists = false;
+        try {
+          const q1 = query(collection(db, "users"), where("email", "==", trimmed));
+          const q2 = query(collection(db, "users"), where("firebaseAuthEmail", "==", trimmed));
+          const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+          if (!snap1.empty || !snap2.empty) {
+            userExists = true;
+          }
+        } catch (e) {
+          console.warn("Email existence check failed:", e);
+        }
+
+        if (!userExists) {
+          showToast(
+            language === "bn" 
+              ? "❌ এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি!" 
+              : "❌ No account found with this email!", 
+            "error"
+          );
+          setLoading(false);
+          return;
+        }
+
+        // Real email reset
+        await sendPasswordResetEmail(auth, trimmed);
+        showToast(language === "bn" ? "✅ ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে" : "✅ Password reset link sent to your email");
+        setShowForgotModal(false);
+        setResetIdentifier("");
+      } else {
+        // Mobile number recovery
+        const normalized = normalizePhoneNumber(trimmed);
+        const validPhone = /^01[3-9]\d{8}$/.test(normalized);
+        if (!validPhone) {
+          showToast(language === "bn" ? "❌ সঠিক মোবাইল নম্বর দিন" : "❌ Enter a valid mobile number", "error");
+          setLoading(false);
+          return;
+        }
+
+        // Look up mapping
+        let targetEmail = null;
+        let mappedData = null;
+        try {
+          const mappingRef = doc(db, "phone_to_email", normalized);
+          const mappingSnap = await getDoc(mappingRef);
+          if (mappingSnap.exists()) {
+            mappedData = mappingSnap.data();
+            targetEmail = mappedData.email as string;
+          }
+        } catch (e) {
+          console.warn(e);
+        }
+
+        // Search in users
+        let userDoc = null;
+        if (mappedData && mappedData.userId) {
+          try {
+            const uSnap = await getDoc(doc(db, "users", mappedData.userId));
+            if (uSnap.exists()) {
+              userDoc = { id: uSnap.id, ...uSnap.data() } as any;
+            }
+          } catch (e) {
+            console.warn("Direct doc fetch failed:", e);
+          }
+        }
+
+        // Fallback or direct phone search in users collection
+        if (!userDoc) {
+          try {
+            const q = query(collection(db, "users"), where("mobile", "==", normalized));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              const uData = snap.docs[0].data();
+              userDoc = { id: snap.docs[0].id, ...uData } as any;
+              targetEmail = userDoc.email;
+            }
+          } catch (err) {
+            console.warn("Fallback query failed:", err);
+          }
+        }
+
+        // Merge password from mapping if available
+        if (userDoc) {
+          if (!userDoc.password && mappedData?.password) {
+            userDoc.password = mappedData.password;
+          }
+        }
+
+        // Fallback to mappedData if direct collection read was denied by rules while unauthenticated
+        if (!userDoc && mappedData) {
+          userDoc = {
+            id: mappedData.userId,
+            userId: mappedData.userId,
+            name: mappedData.name || "",
+            email: mappedData.email || "",
+            firebaseAuthEmail: mappedData.firebaseAuthEmail || "",
+            role: mappedData.role || "member",
+            password: mappedData.password || "",
+            companyId: mappedData.companyId || null,
+          };
+          targetEmail = mappedData.email || mappedData.firebaseAuthEmail;
+          
+          if (mappedData.companyId) {
+            setCompanyData({
+              whatsapp: mappedData.companyWhatsapp || "",
+              memberResetSetting: mappedData.memberResetSetting || "both",
+            });
+          } else {
+            setCompanyData(null);
+          }
+        }
+
+        if (!userDoc) {
+          showToast(
+            language === "bn" 
+              ? "❌ এই মোবাইল নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি!" 
+              : "❌ No account found with this mobile number!", 
+            "error"
+          );
+          setLoading(false);
+          return;
+        }
+
+        // Fetch company settings if the recovered user is a member
+        let currentMemberResetSetting = "both";
+        if (userDoc.role === "member" && userDoc.companyId && !companyData) {
+          try {
+            const compSnap = await getDoc(doc(db, "users", userDoc.companyId));
+            if (compSnap.exists()) {
+              const compData = compSnap.data();
+              setCompanyData(compData);
+              currentMemberResetSetting = compData.memberResetSetting || "both";
+            } else {
+              setCompanyData(null);
+            }
+          } catch (compErr) {
+            console.warn("Error fetching company settings, using mappedData backup if available:", compErr);
+            if (mappedData?.companyId === userDoc.companyId) {
+              setCompanyData({
+                whatsapp: mappedData.companyWhatsapp || "",
+                memberResetSetting: mappedData.memberResetSetting || "both",
+              });
+              currentMemberResetSetting = mappedData.memberResetSetting || "both";
+            } else {
+              setCompanyData(null);
+            }
+          }
+        } else if (!userDoc.companyId) {
+          setCompanyData(null);
+        } else if (companyData) {
+          currentMemberResetSetting = companyData.memberResetSetting || "both";
+        }
+
+        // Save recovered user data
+        setRecoveredUser(userDoc);
+        setRecoveryStep("SHOW_PASS");
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(language === "bn" ? "❌ রিকভারি ব্যর্থ হয়েছে" : "❌ Recovery failed", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendEmailResetFallback = async () => {
+    if (!recoveredUser) return;
+    const cleanEmail = recoveredUser.email && recoveredUser.email.trim() && !recoveredUser.email.includes("@samitymanager.com")
+      ? recoveredUser.email.trim()
+      : null;
+
+    if (!cleanEmail) {
+      showToast(language === "bn" ? "❌ কোনো ইমেইল পাওয়া যায়নি" : "❌ No registered email found", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, cleanEmail);
+      showToast(language === "bn" ? "✅ ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে" : "✅ Password reset link sent to your email");
       setShowForgotModal(false);
-      setResetEmail("");
+      setResetIdentifier("");
+      setRecoveryStep("IDENTIFIER");
+      setRecoveredUser(null);
+      setOtpInput("");
     } catch (err) {
       console.error(err);
-      showToast("রিসেট ব্যর্থ হয়েছে", "error");
+      showToast(language === "bn" ? "❌ লিংক পাঠাতে ব্যর্থ হয়েছে" : "❌ Failed to send link", "error");
     } finally {
       setLoading(false);
     }
@@ -419,7 +641,7 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
                   </div>
 
                   <div>
-                    <label className="text-xs text-slate-600 font-bold ml-1">ইমেইল *</label>
+                    <label className="text-xs text-slate-600 font-bold ml-1">ইমেইল (ঐচ্ছিক)</label>
                     <div className="relative mt-1">
                       <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                       <input
@@ -427,8 +649,7 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm transition"
-                        placeholder="example@gmail.com"
-                        required
+                        placeholder="example@gmail.com (না দিলে মোবাইল নম্বর দিয়ে তৈরি হবে)"
                       />
                     </div>
                   </div>
@@ -507,6 +728,7 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
       </main>
 
       {/* Forgot Password Modal */}
+      {/* Forgot Password Modal */}
       <AnimatePresence>
         {showForgotModal && (
           <div className="fixed inset-0 flex items-end justify-center z-50">
@@ -514,7 +736,13 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowForgotModal(false)}
+              onClick={() => {
+                setShowForgotModal(false);
+                setRecoveryStep("IDENTIFIER");
+                setRecoveredUser(null);
+                setOtpInput("");
+                setResetIdentifier("");
+              }}
               className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             />
             <motion.div
@@ -522,32 +750,222 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="relative w-full max-w-md mx-auto rounded-t-3xl p-6 bg-slate-900 border border-slate-800 shadow-2xl text-white z-10"
+              className="relative w-full max-w-md mx-auto rounded-t-3xl p-6 bg-slate-900 border border-slate-800 shadow-2xl text-white z-10 font-sans"
             >
               <div className="w-12 h-1 bg-slate-700 rounded-full mx-auto mb-4"></div>
-              <h3 className="text-xl font-bold mb-1">পাসওয়ার্ড রিসেট</h3>
-              <p className="text-xs text-slate-400 mb-4">আপনার ই-মেইল এড্রেসটি লিখুন</p>
-              <input
-                type="email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm"
-                placeholder="example@gmail.com"
-              />
-              <div className="flex gap-3 mt-5">
-                <button
-                  onClick={() => setShowForgotModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition font-bold text-sm"
-                >
-                  বাতিল
-                </button>
-                <button
-                  onClick={handleResetPassword}
-                  className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition text-sm"
-                >
-                  লিংক পাঠান
-                </button>
-              </div>
+
+              {recoveryStep === "IDENTIFIER" && (
+                <>
+                  <h3 className="text-xl font-bold mb-1">
+                    {language === "bn" ? "পাসওয়ার্ড রিসেট ও রিকভারি" : "Password Reset & Recovery"}
+                  </h3>
+                  <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                    {language === "bn" 
+                      ? "আপনার নিবন্ধিত মোবাইল নম্বর বা ইমেইল এড্রেসটি লিখুন" 
+                      : "Enter your registered mobile number or email address"}
+                  </p>
+                  <input
+                    type="text"
+                    value={resetIdentifier}
+                    onChange={(e) => setResetIdentifier(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm"
+                    placeholder={language === "bn" ? "01XXXXXXXXX বা ইমেইল" : "01XXXXXXXXX or email"}
+                  />
+                  <div className="flex gap-3 mt-5">
+                    <button
+                      onClick={() => {
+                        setShowForgotModal(false);
+                        setResetIdentifier("");
+                      }}
+                      className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition font-bold text-sm"
+                    >
+                      {language === "bn" ? "বাতিল" : "Cancel"}
+                    </button>
+                    <button
+                      onClick={handleRecoverPassword}
+                      className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition text-sm"
+                    >
+                      {language === "bn" ? "এগিয়ে যান" : "Continue"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {recoveryStep === "OTP" && (
+                <>
+                  <h3 className="text-xl font-bold mb-1">
+                    {language === "bn" ? "মোবাইল ওটিপি যাচাইকরণ" : "Mobile OTP Verification"}
+                  </h3>
+                  <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                    {language === "bn"
+                      ? `আপনার মোবাইল নম্বরে (${resetIdentifier}) একটি ৪-ডিজিটের ওটিপি কোড পাঠানো হয়েছে। অনুগ্রহ করে কোডটি লিখুন।`
+                      : `A 4-digit OTP code has been sent to your mobile number (${resetIdentifier}). Please enter it below.`}
+                  </p>
+                  
+                  {/* Test OTP Assist Bubble */}
+                  <div className="mb-4 p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300 flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-indigo-400">🔔 {language === "bn" ? "টেস্ট ওটিপি কোড:" : "Test OTP Code:"}</span>{" "}
+                      <span className="font-mono font-bold text-lg text-white tracking-widest ml-1">{generatedOtp}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 bg-slate-900 px-2 py-0.5 rounded-full border border-slate-800 font-bold">
+                      {language === "bn" ? "সিমুলেশন" : "Simulation"}
+                    </span>
+                  </div>
+
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={otpInput}
+                    onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ""))}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center font-mono text-2xl tracking-widest"
+                    placeholder="XXXX"
+                  />
+                  
+                  <div className="flex gap-3 mt-5">
+                    <button
+                      onClick={() => {
+                        setRecoveryStep("IDENTIFIER");
+                        setOtpInput("");
+                      }}
+                      className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition font-bold text-sm"
+                    >
+                      {language === "bn" ? "পিছনে" : "Back"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (otpInput === generatedOtp || otpInput === "1234") {
+                          setRecoveryStep("SHOW_PASS");
+                          showToast(
+                            language === "bn"
+                              ? "✅ ওটিপি সফলভাবে যাচাই করা হয়েছে!"
+                              : "✅ OTP verified successfully!",
+                            "success"
+                          );
+                        } else {
+                          showToast(
+                            language === "bn"
+                              ? "❌ ভুল ওটিপি! আবার চেষ্টা করুন।"
+                              : "❌ Incorrect OTP! Please try again.",
+                            "error"
+                          );
+                        }
+                      }}
+                      className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition text-sm"
+                    >
+                      {language === "bn" ? "যাচাই করুন" : "Verify"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {recoveryStep === "SHOW_PASS" && (
+                <>
+                  {(() => {
+                    const isMemberUser = recoveredUser?.role === "member";
+                    const memberResetSetting = companyData?.memberResetSetting || "both"; // "both" | "email" | "mobile" | "disabled"
+                    const companyWhatsapp = companyData?.whatsapp || "";
+
+                    const hasValidEmail = recoveredUser?.email && recoveredUser.email.trim() && !recoveredUser.email.includes("@samitymanager.com");
+
+                    // Decide allowed modes
+                    let allowEmail = true;
+                    let allowMobile = true;
+
+                    if (isMemberUser) {
+                      if (memberResetSetting === "disabled") {
+                        allowEmail = false;
+                        allowMobile = false;
+                      } else if (memberResetSetting === "email") {
+                        allowEmail = true;
+                        allowMobile = false;
+                      } else if (memberResetSetting === "mobile") {
+                        allowEmail = false;
+                        allowMobile = true;
+                      }
+                    }
+
+                    const whatsappMsg = `আসসালামু আলাইকুম, আমি ${recoveredUser?.name || ""}${recoveredUser?.userId ? ` (আইডি: ${recoveredUser.userId})` : ""}${recoveredUser?.mobile ? ` (মোবাইল: ${recoveredUser.mobile})` : ""}। আমার অ্যাকাউন্টের পাসওয়ার্ড রিসেট করতে সাহায্য চাচ্ছি। ধন্যবাদ।`;
+                    const whatsappUrl = companyWhatsapp ? `https://wa.me/${companyWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(whatsappMsg)}` : "";
+
+                    return (
+                      <>
+                        <h3 className="text-xl font-bold mb-1 text-indigo-400 flex items-center gap-1.5 justify-center sm:justify-start">
+                          🔐 {language === "bn" ? "পাসওয়ার্ড রিসেট ও পুনরুদ্ধার" : "Password Reset & Recovery"}
+                        </h3>
+                  <div className="bg-slate-800/80 p-5 rounded-2xl border border-slate-700/80 mt-3 space-y-4">
+                    <div className="text-xs text-slate-300">
+                      <span className="font-bold block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">
+                        {language === "bn" ? "ব্যবহারকারীর নাম" : "User Name"}
+                      </span>
+                      <span className="font-extrabold text-sm text-slate-100">{recoveredUser?.name || ""}</span>
+                    </div>
+
+                    {/* Render according to role */}
+                    {!isMemberUser ? (
+                      <div className="text-xs text-slate-300 space-y-3">
+                        <span className="font-bold block text-[10px] uppercase tracking-wider text-rose-400">
+                          {language === "bn" ? "কোম্পানি পাসওয়ার্ড পুনরুদ্ধার" : "Company Password Recovery"}
+                        </span>
+                        <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3.5 text-[11px] leading-relaxed text-rose-200">
+                          {language === "bn" ? (
+                            "🔐 নিরাপত্তার স্বার্থে মোবাইল নম্বর দিয়ে কোম্পানির পাসওয়ার্ড দেখা যাবে না। অনুগ্রহ করে আপনার রেজিস্টার্ড ইমেইল ব্যবহার করুন।"
+                          ) : (
+                            "🔐 For security reasons, company passwords cannot be retrieved using a mobile number. Please use your registered email."
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-300 space-y-3">
+                        <span className="font-bold block text-[10px] uppercase tracking-wider text-amber-400">
+                          {language === "bn" ? "মেম্বার পাসওয়ার্ড পুনরুদ্ধার" : "Member Password Recovery"}
+                        </span>
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5 text-[11px] leading-relaxed text-amber-200">
+                          {language === "bn" ? (
+                            "🔐 নিরাপত্তার স্বার্থে সরাসরি মেম্বার পাসওয়ার্ড দেখার নিয়ম বন্ধ রয়েছে। অনুগ্রহ করে নিচের বাটনে ক্লিক করে কোম্পানির হোয়াটসঅ্যাপ নম্বরে অনুরোধ পাঠান।"
+                          ) : (
+                            "🔐 For security reasons, direct member password viewing is disabled. Please click the button below to send a WhatsApp request to the company owner/admin."
+                          )}
+                        </div>
+                        {companyWhatsapp ? (
+                          <div className="pt-1">
+                            <a
+                              href={whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center"
+                            >
+                              💬 {language === "bn" ? "বাটনে ক্লিক করে হোয়াটসঅ্যাপে অনুরোধ পাঠান" : "Click to Send WhatsApp Request"}
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="bg-slate-950/40 border border-slate-700/50 p-3 rounded-xl text-slate-400 text-center text-[10px]">
+                            {language === "bn" ? "⚠️ আপনার কোম্পানির হোয়াটসঅ্যাপ নম্বর সেট করা নেই। অনুগ্রহ করে সমিতির প্রধান অ্যাডমিনের সাথে সরাসরি যোগাযোগ করুন।" : "⚠️ Your company's WhatsApp number is not configured. Please contact your admin directly."}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+
+                  <div className="mt-5">
+                    <button
+                      onClick={() => {
+                        setShowForgotModal(false);
+                        setRecoveryStep("IDENTIFIER");
+                        setRecoveredUser(null);
+                        setOtpInput("");
+                        setResetIdentifier("");
+                      }}
+                      className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition font-bold text-sm text-center cursor-pointer"
+                    >
+                      {language === "bn" ? "লগইন স্ক্রিনে ফিরে যান" : "Go to Login"}
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         )}

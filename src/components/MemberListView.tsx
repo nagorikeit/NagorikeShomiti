@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { collection, doc, deleteDoc, updateDoc, onSnapshot, getDocs, addDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, secondaryAuth } from "../firebase";
 import { User } from "../types";
 import {
   STATUS_LABELS,
@@ -10,7 +10,7 @@ import {
   INVEST_LABELS,
   formatBDT,
 } from "../utils/firestore";
-import { Search, Plus, ArrowLeft, Trash2, ToggleRight, User as UserIcon } from "lucide-react";
+import { Search, Plus, ArrowLeft, Trash2, ToggleRight, User as UserIcon, Key, Mail, MessageSquare, Copy, Check, ShieldAlert } from "lucide-react";
 
 interface MemberListViewProps {
   currentUser: User;
@@ -31,6 +31,14 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
   const [statusTarget, setStatusTarget] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // OTP management states
+  const [otpTarget, setOtpTarget] = useState<User | null>(null);
+  const [otpPass, setOtpPass] = useState("");
+  const [otpRequireChange, setOtpRequireChange] = useState(true);
+  const [otpSuccess, setOtpSuccess] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpCopied, setOtpCopied] = useState(false);
 
   const toBanglaDigits = (num: number | string) => {
     const banglaDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
@@ -113,6 +121,83 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
       alert("ডিলিট করা যায়নি");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleOpenOtpModal = (user: User) => {
+    setOtpTarget(user);
+    // Generate a secure 6-digit random number as OTP by default
+    const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    setOtpPass(randomOtp);
+    setOtpRequireChange(true);
+    setOtpSuccess(false);
+    setOtpCopied(false);
+  };
+
+  const handleSaveOtp = async () => {
+    if (!otpTarget) return;
+    const trimmedPass = otpPass.trim();
+    if (!trimmedPass) {
+      alert("অনুগ্রহ করে একটি ওটিপি পাসওয়ার্ড লিখুন");
+      return;
+    }
+    setOtpSending(true);
+    try {
+      // Normalize mobile number
+      const rawMobile = otpTarget.mobile || "";
+      const normMobile = rawMobile.replace(/\D/g, "");
+      const memberEmail = otpTarget.firebaseAuthEmail || otpTarget.email || `${normMobile}@samitymanager.com`;
+      const oldPassword = otpTarget.password || "";
+
+      // 1. Update in secondaryAuth
+      const { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut } = await import("firebase/auth");
+      
+      if (oldPassword) {
+        try {
+          const secCred = await signInWithEmailAndPassword(secondaryAuth, memberEmail, oldPassword);
+          await updatePassword(secCred.user, trimmedPass);
+          await signOut(secondaryAuth);
+          console.log("Successfully updated password in Firebase Auth via secondaryAuth");
+        } catch (authErr: any) {
+          console.warn("Could not update secondary password via login, trying creation:", authErr);
+          if (authErr.code === "auth/user-not-found" || authErr.code === "auth/invalid-credential" || authErr.code === "auth/cannot-delete-owner") {
+            try {
+              await createUserWithEmailAndPassword(secondaryAuth, memberEmail, trimmedPass);
+              await signOut(secondaryAuth);
+            } catch (createErr) {
+              console.warn("Failed to create secondaryAuth account on-demand:", createErr);
+            }
+          }
+        }
+      } else {
+        try {
+          await createUserWithEmailAndPassword(secondaryAuth, memberEmail, trimmedPass);
+          await signOut(secondaryAuth);
+        } catch (createErr) {
+          console.warn("Failed to create secondaryAuth account for new password:", createErr);
+        }
+      }
+
+      // 2. Update user collection doc
+      await updateDoc(doc(db, "users", otpTarget.docId), {
+        password: trimmedPass,
+        requirePasswordChange: otpRequireChange,
+      });
+
+      // 3. Update phone_to_email mapping
+      if (normMobile) {
+        await updateDoc(doc(db, "phone_to_email", normMobile), {
+          password: trimmedPass,
+        }).catch((err) => console.warn("Failed to update phone_to_email password mapping:", err));
+      }
+
+      setOtpSuccess(true);
+      alert("মেম্বারের জন্য পাসওয়ার্ড/ওটিপি সফলভাবে সেট করা হয়েছে!");
+    } catch (e: any) {
+      console.error(e);
+      alert("ওটিপি সেট করতে সমস্যা হয়েছে: " + e.message);
+    } finally {
+      setOtpSending(false);
     }
   };
 
@@ -509,6 +594,14 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
                           {(currentUser.role === "admin" || (currentUser.role === "company" && m.role === "member")) && (
                             <>
                               <button
+                                onClick={() => handleOpenOtpModal(m)}
+                                className="flex-1 px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition flex items-center justify-center gap-1 cursor-pointer text-[10px] font-bold"
+                                title="ওটিপি সেট করুন"
+                              >
+                                <Key className="w-3.5 h-3.5" />
+                                <span>ওটিপি</span>
+                              </button>
+                              <button
                                 onClick={() => setStatusTarget(m)}
                                 className="flex-1 px-2 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 transition flex items-center justify-center gap-1 cursor-pointer text-[10px] font-bold"
                                 title="স্ট্যাটাস পরিবর্তন"
@@ -611,6 +704,170 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
           <div className="bg-white px-5 py-4 rounded-xl shadow-xl flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
             <p className="text-slate-600 text-xs font-semibold">প্রসেসিং হচ্ছে...</p>
+          </div>
+        </div>
+      )}
+
+      {/* OTP/Password Management Modal */}
+      {otpTarget && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-5 border border-slate-100 overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+              <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl">
+                <Key className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-bold text-slate-800 text-sm">মেম্বার ওটিপি ও পাসওয়ার্ড সেট</h3>
+                <p className="text-[10px] text-slate-500">{otpTarget.name || ""}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Password Setting Input */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 text-left">
+                  ওয়ান-টাইম পাসওয়ার্ড (OTP)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={otpPass}
+                    onChange={(e) => {
+                      setOtpPass(e.target.value);
+                      setOtpSuccess(false);
+                    }}
+                    className="w-full px-3.5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-base font-extrabold tracking-widest text-slate-800 focus:outline-none focus:border-indigo-500 transition text-center"
+                    placeholder="পাসওয়ার্ড লিখুন"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
+                      setOtpPass(randomOtp);
+                      setOtpSuccess(false);
+                    }}
+                    className="absolute right-2 top-2 px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-[9px] transition active:scale-95 cursor-pointer"
+                  >
+                    নতুন জেনারেট
+                  </button>
+                </div>
+              </div>
+
+              {/* Force Password Change Option */}
+              <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-100 text-left">
+                <input
+                  type="checkbox"
+                  id="otpRequireChange"
+                  checked={otpRequireChange}
+                  onChange={(e) => {
+                    setOtpRequireChange(e.target.checked);
+                    setOtpSuccess(false);
+                  }}
+                  className="mt-0.5 w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                />
+                <label htmlFor="otpRequireChange" className="text-[10px] text-slate-600 leading-normal font-semibold cursor-pointer select-none">
+                  🔐 এটি একটি ওটিপি হিসেবে চিহ্নিত করুন (লগইন করে মেম্বারের জন্য পাসওয়ার্ড পরিবর্তন বাধ্যতামূলক)
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOtpTarget(null)}
+                  className="flex-1 py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-xs transition cursor-pointer"
+                >
+                  বন্ধ করুন
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveOtp}
+                  disabled={otpSending}
+                  className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-indigo-600/10"
+                >
+                  {otpSending ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>সেভ হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <span>পাসওয়ার্ড সেট করুন</span>
+                  )}
+                </button>
+              </div>
+
+              {/* Message sending area when set successfully */}
+              {otpSuccess && (
+                <div className="border-t border-slate-100 pt-4 mt-4 space-y-3 text-left">
+                  <span className="font-bold block text-[10px] uppercase tracking-wider text-emerald-600">
+                    ✉️ ওটিপি / পাসওয়ার্ড মেসেজ পাঠান
+                  </span>
+                  
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 text-[10px] font-medium rounded-xl p-3 leading-relaxed">
+                    পাসওয়ার্ড সফলভাবে ডেটাবেজে সংরক্ষিত হয়েছে। এখন মেম্বারের ইমেল বা মোবাইলে এটি প্রেরণ করার জন্য নিচের মাধ্যমগুলো ব্যবহার করতে পারেন:
+                  </div>
+
+                  <div className="space-y-2">
+                    {/* Send WhatsApp Message */}
+                    {(() => {
+                      const waPhone = otpTarget.mobile ? otpTarget.mobile.replace(/\D/g, "") : "";
+                      const formattedWaPhone = waPhone.startsWith("0") && waPhone.length === 11 ? "88" + waPhone : waPhone;
+                      const textMsg = `আসসালামু আলাইকুম ${otpTarget.name || ""},\nআপনার সমিতির একাউন্টের ওয়ান-টাইম পাসওয়ার্ড (OTP) সেট করা হয়েছে।\n\n🔑 নতুন পাসওয়ার্ড: ${otpPass}\n🌐 লগইন করুন: ${window.location.origin}\n\nধন্যবাদ!`;
+                      const waUrl = `https://wa.me/${formattedWaPhone}?text=${encodeURIComponent(textMsg)}`;
+
+                      return (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center shadow-sm"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          <span>হোয়াটসঅ্যাপের মাধ্যমে ওটিপি পাঠান</span>
+                        </a>
+                      );
+                    })()}
+
+                    {/* Send Email */}
+                    {otpTarget.email && (
+                      <a
+                        href={`mailto:${otpTarget.email}?subject=${encodeURIComponent("সমিতির একাউন্টের ওটিপি পাসওয়ার্ড")}&body=${encodeURIComponent(
+                          `আসসালামু আলাইকুম ${otpTarget.name || ""},\nআপনার সমিতির একাউন্টের ওয়ান-টাইম পাসওয়ার্ড (OTP) সেট করা হয়েছে।\n\n🔑 নতুন পাসওয়ার্ড: ${otpPass}\n🌐 লগইন করুন: ${window.location.origin}\n\nধন্যবাদ!`
+                        )}`}
+                        className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center shadow-sm"
+                      >
+                        <Mail className="w-4 h-4" />
+                        <span>ইমেলের মাধ্যমে ওটিপি পাঠান</span>
+                      </a>
+                    )}
+
+                    {/* Copy Text for SMS */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const textToCopy = `আসসালামু আলাইকুম ${otpTarget.name || ""}, আপনার সমিতির একাউন্টের ওয়ান-টাইম পাসওয়ার্ড (OTP) সেট করা হয়েছে। নতুন পাসওয়ার্ড: ${otpPass}। লগইন করুন: ${window.location.origin}। ধন্যবাদ!`;
+                        navigator.clipboard.writeText(textToCopy);
+                        setOtpCopied(true);
+                        setTimeout(() => setOtpCopied(false), 2000);
+                      }}
+                      className="w-full py-2.5 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    >
+                      {otpCopied ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span className="text-emerald-400">মেসেজ কপি হয়েছে!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          <span>এসএমএস হিসেবে কপি করুন</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
