@@ -46,11 +46,11 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync
 
-      # Step 7: Fix potentially corrupted Gradle Wrapper JAR
-      - name: Download Clean Gradle Wrapper JAR
+      # Step 7: Regenerate the Gradle Wrapper to prevent binary corruption on Git push/checkout
+      - name: Regenerate Gradle Wrapper
         run: |
-          mkdir -p android/gradle/wrapper
-          curl -sSL "https://raw.githubusercontent.com/gradle/gradle/v8.13.0/gradle/wrapper/gradle-wrapper.jar" -o android/gradle/wrapper/gradle-wrapper.jar
+          cd android
+          gradle wrapper --gradle-version 8.14.3 --distribution-type all
 
       # Step 8: Make Gradle wrapper script executable
       - name: Make Gradle Wrapper Executable
