@@ -60,12 +60,13 @@ export default function AdminDashboardView({
   language = "bn" 
 }: AdminDashboardViewProps) {
   const [users, setUsers] = useState<User[]>([]);
+  const [transactionRequests, setTransactionRequests] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Search and filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterPlan, setFilterPlan] = useState<"all" | "free" | "monthly" | "yearly" | "requested">("all");
+  const [filterPlan, setFilterPlan] = useState<"all" | "free" | "monthly" | "yearly" | "requested" | "active" | "pending">("all");
 
   // Gateway Settings state
   const [gatewayEnabled, setGatewayEnabled] = useState(false);
@@ -103,6 +104,58 @@ export default function AdminDashboardView({
 
     return () => unsub();
   }, []);
+
+  // 1b. Fetch Transaction Requests in Realtime
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "transaction_requests"), (snap) => {
+      const list: any[] = [];
+      snap.forEach((d) => {
+        list.push({ id: d.id, ...d.data() });
+      });
+      setTransactionRequests(list);
+    }, (err) => {
+      console.error("Error fetching transaction requests:", err);
+    });
+
+    return () => unsub();
+  }, []);
+
+  // Handle General Company status update (Approve / Activate / Block)
+  const handleUpdateCompanyStatus = async (company: User, newStatus: "active" | "pending" | "deactive") => {
+    try {
+      const companyRef = doc(db, "users", company.docId);
+      await updateDoc(companyRef, {
+        status: newStatus
+      });
+
+      // Write System Log
+      await addDoc(collection(db, "activity_logs"), {
+        userId: company.docId,
+        userName: company.companyName || company.name || "কোম্পানি",
+        action: `COMPANY_STATUS_${newStatus.toUpperCase()}`,
+        details: `কোম্পানির অ্যাকাউন্ট স্ট্যাটাস পরিবর্তন করে "${newStatus === "active" ? "সক্রিয় (Active)" : newStatus === "pending" ? "পেন্ডিং (Pending)" : "নিষ্ক্রিয় (Deactive)"}" করা হয়েছে।`,
+        timestamp: Date.now()
+      });
+
+      // Send Notification to company
+      await addDoc(collection(db, "notifications"), {
+        title: `⚙️ অ্যাকাউন্ট অ্যাক্টিভেশন স্ট্যাটাস আপডেট`,
+        body: `সিস্টেম অ্যাডমিন কর্তৃক আপনার কোম্পানি খাতা অ্যাকাউন্টটি সফলভাবে "${newStatus === "active" ? "সক্রিয় করা হয়েছে" : newStatus === "pending" ? "পেন্ডিং করা হয়েছে" : "ব্লক/নিষ্ক্রিয় করা হয়েছে"}"।`,
+        senderId: currentUser.docId,
+        senderName: "System Admin",
+        senderRole: "admin",
+        targetType: "company",
+        targetUserId: company.docId,
+        createdAt: new Date().toISOString(),
+        readBy: [],
+      });
+
+      showToast(`🎉 "${company.companyName || company.name}" এর স্ট্যাটাস সফলভাবে "${newStatus === "active" ? "সক্রিয়" : newStatus === "pending" ? "পেন্ডিং" : "নিষ্ক্রিয়"}" করা হয়েছে!`);
+    } catch (err: any) {
+      console.error("Error updating company status:", err);
+      showToast("❌ স্ট্যাটাস পরিবর্তন করতে সমস্যা হয়েছে: " + err.message, "error");
+    }
+  };
 
   // 2. Fetch Activity Logs
   useEffect(() => {
@@ -234,17 +287,28 @@ export default function AdminDashboardView({
   const totalCompanies = companies.length;
   const totalMembers = users.filter(u => u.role === "member").length;
 
+  // 1. active and pending companies counts
+  const activeCompaniesCount = companies.filter(c => c.status === "active" || !c.status).length;
+  const pendingCompaniesCount = companies.filter(c => c.status === "pending" || c.status === "request").length;
+
   const freeCompaniesCount = companies.filter(c => !c.plan || c.plan === "free").length;
   const monthlyCompaniesCount = companies.filter(c => c.plan === "monthly").length;
   const yearlyCompaniesCount = companies.filter(c => c.plan === "yearly").length;
 
+  // 2. active subscriptions count
   const activePremiumCompanies = companies.filter(c => 
     c.plan && c.plan !== "free" && (!c.planActiveUntil || c.planActiveUntil > Date.now())
   );
   const activePremiumCount = activePremiumCompanies.length;
 
-  const pendingRequests = companies.filter(c => c.planRequested);
-  const pendingRequestsCount = pendingRequests.length;
+  // 3. pending subscription requests count
+  const pendingRequestsCount = companies.filter(c => c.planRequested).length;
+
+  // 4. payment requests count (subscription requests containing a TxID or payment method)
+  const paymentRequestsCount = companies.filter(c => c.planRequested && (c.planRequestTxId || c.planRequestMobile)).length;
+
+  // 5. active member requests count (from transaction_requests collection)
+  const activeRequestsCount = transactionRequests.filter(r => r.status === "pending").length;
 
   // Filtered list of companies for directory
   const filteredCompaniesList = companies.filter(c => {
@@ -259,6 +323,8 @@ export default function AdminDashboardView({
     if (filterPlan === "monthly") return matchesSearch && c.plan === "monthly";
     if (filterPlan === "yearly") return matchesSearch && c.plan === "yearly";
     if (filterPlan === "requested") return matchesSearch && !!c.planRequested;
+    if (filterPlan === "active") return matchesSearch && (c.status === "active" || !c.status);
+    if (filterPlan === "pending") return matchesSearch && (c.status === "pending" || c.status === "request");
 
     return matchesSearch;
   });
@@ -318,79 +384,135 @@ export default function AdminDashboardView({
         </div>
       </div>
 
-      {/* KPI Stats Bento Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+      {/* KPI Stats Bento Grid (6 core metrics requested by user) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         
-        {/* Total Companies Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-start justify-between gap-3 relative overflow-hidden group hover:border-slate-300 dark:hover:border-slate-700 transition duration-300">
-          <div className="space-y-2">
-            <p className="text-[10px] font-black tracking-wider uppercase text-slate-450 dark:text-slate-500">মোট নিবন্ধিত কোম্পানি</p>
-            <h3 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-slate-100 font-mono">
-              {totalCompanies} <span className="text-xs font-bold text-slate-400">টি</span>
+        {/* 1. Active Companies Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition duration-300 relative group">
+          <div className="space-y-1">
+            <p className="text-[9px] font-black tracking-wider uppercase text-emerald-605 dark:text-emerald-500">একটিভ কোম্পানি</p>
+            <h3 className="text-xl sm:text-2xl font-black text-emerald-605 dark:text-emerald-400 font-mono">
+              {activeCompaniesCount} <span className="text-[10px] font-bold text-slate-400">টি</span>
             </h3>
-            <div className="flex flex-wrap gap-1.5 text-[9px] font-extrabold text-slate-500 mt-1">
-              <span className="bg-slate-100 dark:bg-slate-950 px-1.5 py-0.5 rounded-md">ফ্রিঃ {freeCompaniesCount}</span>
-              <span className="bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-md">মাসিকঃ {monthlyCompaniesCount}</span>
-              <span className="bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-400 px-1.5 py-0.5 rounded-md">বাৎসরিকঃ {yearlyCompaniesCount}</span>
-            </div>
           </div>
-          <div className="p-3 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-2xl border border-blue-100 dark:border-blue-900/40">
-            <Building2 className="w-5 h-5" />
+          <div className="flex items-center justify-between mt-3">
+            <button 
+              onClick={() => { setFilterPlan("active"); setSearchQuery(""); }} 
+              className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5"
+            >
+              তালিকা দেখুন →
+            </button>
+            <span className="p-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
+              <Building2 className="w-4 h-4" />
+            </span>
           </div>
         </div>
 
-        {/* Active Premium Subscriptions Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-start justify-between gap-3 relative overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 transition duration-300">
-          <div className="space-y-2">
-            <p className="text-[10px] font-black tracking-wider uppercase text-slate-450 dark:text-slate-500">সক্রিয় প্রিমিয়াম খাতা</p>
-            <h3 className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-              {activePremiumCount} <span className="text-xs font-bold text-slate-450">টি</span>
+        {/* 2. Pending Companies Card */}
+        <div className={`bg-white dark:bg-slate-900 border p-4 rounded-2xl shadow-sm flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition duration-300 relative group ${
+          pendingCompaniesCount > 0 ? "border-amber-300 dark:border-amber-900 bg-amber-50/5 dark:bg-amber-950/5 animate-pulse" : "border-slate-200 dark:border-slate-800"
+        }`}>
+          <div className="space-y-1">
+            <p className="text-[9px] font-black tracking-wider uppercase text-amber-500">পেন্ডিং কম্পানি</p>
+            <h3 className={`text-xl sm:text-2xl font-black font-mono ${pendingCompaniesCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-600 dark:text-slate-400"}`}>
+              {pendingCompaniesCount} <span className="text-[10px] font-bold text-slate-400">টি</span>
             </h3>
-            <p className="text-[10px] text-slate-400 font-bold leading-normal">
-              বর্তমানে আনলিমিটেড প্রিমিয়াম সুবিধা উপভোগ করছেন।
-            </p>
           </div>
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
-            <Crown className="w-5 h-5" />
+          <div className="flex items-center justify-between mt-3">
+            <button 
+              onClick={() => { setFilterPlan("pending"); setSearchQuery(""); }} 
+              className="text-[9px] font-black text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5"
+            >
+              অনুমোদন দিন →
+            </button>
+            <span className={`p-1.5 rounded-lg ${pendingCompaniesCount > 0 ? "bg-amber-100 dark:bg-amber-900 text-amber-700" : "bg-slate-100 dark:bg-slate-950 text-slate-450"}`}>
+              <Clock className="w-4 h-4" />
+            </span>
           </div>
         </div>
 
-        {/* Pending Approval Requests */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-start justify-between gap-3 relative overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 transition duration-300">
-          <div className="space-y-2">
-            <p className="text-[10px] font-black tracking-wider uppercase text-slate-450 dark:text-slate-500">অপেক্ষমাণ রিকোয়েস্ট</p>
-            <h3 className={`text-2xl sm:text-3xl font-black font-mono ${pendingRequestsCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-600 dark:text-slate-450"}`}>
-              {pendingRequestsCount} <span className="text-xs font-bold text-slate-450">টি</span>
+        {/* 3. Active Requests Card (Member deposits/withdrawals) */}
+        <div className={`bg-white dark:bg-slate-900 border p-4 rounded-2xl shadow-sm flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition duration-300 relative group ${
+          activeRequestsCount > 0 ? "border-blue-300 dark:border-blue-900 bg-blue-50/5 dark:bg-blue-950/5" : "border-slate-200 dark:border-slate-800"
+        }`}>
+          <div className="space-y-1">
+            <p className="text-[9px] font-black tracking-wider uppercase text-blue-500">একটিভ রিকোয়েস্ট</p>
+            <h3 className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 font-mono">
+              {activeRequestsCount} <span className="text-[10px] font-bold text-slate-400">টি</span>
             </h3>
-            {pendingRequestsCount > 0 ? (
-              <button 
-                onClick={() => onNavigate("subscription-requests")}
-                className="text-[9px] font-black text-rose-600 hover:underline flex items-center gap-0.5 animate-pulse"
-              >
-                ভেরিফাই ও অনুমোদন করুন <ArrowRight className="w-3 h-3" />
-              </button>
-            ) : (
-              <p className="text-[10px] text-slate-400 font-bold">সকল রিকোয়েস্ট ইতিমধ্যে অনুমোদিত।</p>
-            )}
           </div>
-          <div className={`p-3 rounded-2xl border ${pendingRequestsCount > 0 ? "bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-150 animate-pulse" : "bg-slate-50 dark:bg-slate-950 text-slate-400 border-slate-150"}`}>
-            <Clock className="w-5 h-5" />
+          <div className="flex items-center justify-between mt-3">
+            <p className="text-[9px] text-slate-400 font-bold">সোসাইটি ট্রানজেকশন</p>
+            <span className="p-1.5 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-lg">
+              <Activity className="w-4 h-4" />
+            </span>
           </div>
         </div>
 
-        {/* Total Registered Members */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-start justify-between gap-3 relative overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 transition duration-300">
-          <div className="space-y-2">
-            <p className="text-[10px] font-black tracking-wider uppercase text-slate-450 dark:text-slate-500">মোট নিবন্ধিত সাধারণ সদস্য</p>
-            <h3 className="text-2xl sm:text-3xl font-black text-indigo-650 dark:text-indigo-400 font-mono">
-              {totalMembers} <span className="text-xs font-bold text-slate-450">জন</span>
+        {/* 4. Active Subscriptions Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition duration-300 relative group">
+          <div className="space-y-1">
+            <p className="text-[9px] font-black tracking-wider uppercase text-indigo-500">একটি সাবস্ক্রিপশন</p>
+            <h3 className="text-xl sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
+              {activePremiumCount} <span className="text-[10px] font-bold text-slate-400">টি</span>
             </h3>
-            <p className="text-[10px] text-slate-400 font-bold">
-              সমিতিসমূহের অন্তর্ভুক্ত মাঠপর্যায়ের সঞ্চয়ী সদস্য সংখ্যা।
-            </p>
           </div>
-          <div className="p-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
-            <Users className="w-5 h-5" />
+          <div className="flex items-center justify-between mt-3">
+            <button 
+              onClick={() => { setFilterPlan("all"); setSearchQuery(""); }} 
+              className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5"
+            >
+              কোম্পানি সমূহ →
+            </button>
+            <span className="p-1.5 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-lg">
+              <Crown className="w-4 h-4" />
+            </span>
+          </div>
+        </div>
+
+        {/* 5. Pending Subscription Requests Card */}
+        <div className={`bg-white dark:bg-slate-900 border p-4 rounded-2xl shadow-sm flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition duration-300 relative group ${
+          pendingRequestsCount > 0 ? "border-rose-300 dark:border-rose-900 bg-rose-50/5 dark:bg-rose-950/5 animate-pulse" : "border-slate-200 dark:border-slate-800"
+        }`}>
+          <div className="space-y-1">
+            <p className="text-[9px] font-black tracking-wider uppercase text-rose-500">পেন্ডিং সাবস্ক্রিপশন</p>
+            <h3 className={`text-xl sm:text-2xl font-black font-mono ${pendingRequestsCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-600 dark:text-slate-400"}`}>
+              {pendingRequestsCount} <span className="text-[10px] font-bold text-slate-400">টি</span>
+            </h3>
+          </div>
+          <div className="flex items-center justify-between mt-3">
+            <button 
+              onClick={() => onNavigate("subscription-requests")}
+              className="text-[9px] font-black text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-0.5"
+            >
+              অনুমোদন দিন →
+            </button>
+            <span className={`p-1.5 rounded-lg ${pendingRequestsCount > 0 ? "bg-rose-100 dark:bg-rose-950 text-rose-600" : "bg-slate-100 dark:bg-slate-950 text-slate-400"}`}>
+              <AlertTriangle className="w-4 h-4" />
+            </span>
+          </div>
+        </div>
+
+        {/* 6. Payment Requests Card */}
+        <div className={`bg-white dark:bg-slate-900 border p-4 rounded-2xl shadow-sm flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition duration-300 relative group ${
+          paymentRequestsCount > 0 ? "border-violet-300 dark:border-violet-900 bg-violet-50/5" : "border-slate-200 dark:border-slate-800"
+        }`}>
+          <div className="space-y-1">
+            <p className="text-[9px] font-black tracking-wider uppercase text-violet-500">পেমেন্ট রিকোয়েস্ট</p>
+            <h3 className="text-xl sm:text-2xl font-black text-violet-600 dark:text-violet-400 font-mono">
+              {paymentRequestsCount} <span className="text-[10px] font-bold text-slate-400">টি</span>
+            </h3>
+          </div>
+          <div className="flex items-center justify-between mt-3">
+            <button 
+              onClick={() => onNavigate("subscription-requests")}
+              className="text-[9px] font-black text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-0.5"
+            >
+              TxID ভেরিফাই →
+            </button>
+            <span className="p-1.5 bg-violet-50 dark:bg-violet-950/20 text-violet-600 dark:text-violet-400 rounded-lg">
+              <CreditCard className="w-4 h-4" />
+            </span>
           </div>
         </div>
 
@@ -417,11 +539,13 @@ export default function AdminDashboardView({
                   onChange={(e) => setFilterPlan(e.target.value as any)}
                   className="px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black rounded-xl outline-none focus:border-indigo-500 cursor-pointer text-slate-700 dark:text-slate-300"
                 >
-                  <option value="all">সকল প্ল্যান</option>
+                  <option value="all">সকল কোম্পানি</option>
+                  <option value="active">সক্রিয় কোম্পানি</option>
+                  <option value="pending">অপেক্ষমাণ কোম্পানি</option>
                   <option value="free">ফ্রি খাতা</option>
                   <option value="monthly">মাসিক প্রিমিয়াম</option>
                   <option value="yearly">বাৎসরিক ভিআইপি</option>
-                  <option value="requested">রিকোয়েস্টকারী</option>
+                  <option value="requested">সাবস্ক্রিপশন অপেক্ষমাণ</option>
                 </select>
 
                 <div className="relative w-full sm:w-52">
@@ -457,14 +581,17 @@ export default function AdminDashboardView({
               <div className="divide-y divide-slate-150 dark:divide-slate-850 max-h-[500px] overflow-y-auto">
                 {filteredCompaniesList.map((c) => {
                   const companyMembersCount = users.filter(m => m.role === "member" && m.companyId === c.docId).length;
-                  const isActive = c.plan && c.plan !== "free" && (!c.planActiveUntil || c.planActiveUntil > Date.now());
+                  const isActivePlan = c.plan && c.plan !== "free" && (!c.planActiveUntil || c.planActiveUntil > Date.now());
+                  const isAccountPending = c.status === "pending" || c.status === "request";
+                  const isAccountDeactive = c.status === "deactive";
+                  const isAccountActive = !c.status || c.status === "active";
                   
                   return (
                     <div key={c.docId} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-slate-50/40 dark:hover:bg-slate-900/25 transition">
                       
                       {/* Left side details */}
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h4 className="text-xs font-black text-slate-800 dark:text-slate-100">{c.companyName || c.name || "নামহীন কোম্পানি"}</h4>
                           
                           {/* Plan pill */}
@@ -476,12 +603,23 @@ export default function AdminDashboardView({
                             <span className="bg-slate-100 dark:bg-slate-950 text-slate-500 text-[8px] font-bold px-1.5 py-0.5 rounded-md border border-slate-250">ফ্রি খাতা</span>
                           )}
 
+                          {/* Account status pill */}
+                          {isAccountActive && (
+                            <span className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[8px] font-black px-1.5 py-0.5 rounded-md border border-emerald-200/20">সক্রিয় অ্যাকাউন্ট</span>
+                          )}
+                          {isAccountPending && (
+                            <span className="bg-amber-50 dark:bg-amber-950/30 text-amber-750 dark:text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded-md border border-amber-200/20 animate-pulse">পেন্ডিং অ্যাকাউন্ট</span>
+                          )}
+                          {isAccountDeactive && (
+                            <span className="bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 text-[8px] font-black px-1.5 py-0.5 rounded-md border border-rose-200/20">নিষ্ক্রিয় / ব্লক</span>
+                          )}
+
                           {/* Plan request notification indicator */}
                           {c.planRequested && (
-                            <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse">অনুমোদন অপেক্ষমাণ</span>
+                            <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse">সাবস্ক্রিপশন অপেক্ষমাণ</span>
                           )}
                         </div>
-
+ 
                         {/* Contact details */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] text-slate-450 font-bold">
                           <div>মোবাইলঃ <span className="font-mono text-slate-600 dark:text-slate-350">{c.mobile || "প্রদান করা হয়নি"}</span></div>
@@ -492,27 +630,56 @@ export default function AdminDashboardView({
                           )}
                         </div>
                       </div>
-
+ 
                       {/* Right side actions */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                        {/* Account status controls */}
+                        {isAccountPending && (
+                          <button
+                            onClick={() => handleUpdateCompanyStatus(c, "active")}
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9.5px] font-black rounded-lg active:scale-95 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            অ্যাক্টিভ করুন
+                          </button>
+                        )}
+                        {isAccountDeactive && (
+                          <button
+                            onClick={() => handleUpdateCompanyStatus(c, "active")}
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[9.5px] font-black rounded-lg active:scale-95 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            আন-ব্লক করুন
+                          </button>
+                        )}
+                        {isAccountActive && (
+                          <button
+                            onClick={() => handleUpdateCompanyStatus(c, "deactive")}
+                            className="px-2.5 py-1.5 bg-white dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/20 border border-slate-200 dark:border-slate-800 text-rose-600 dark:text-rose-450 text-[9.5px] font-black rounded-lg active:scale-95 transition cursor-pointer flex items-center gap-1"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                            ব্লক করুন
+                          </button>
+                        )}
+
                         {c.planRequested && (
                           <button
                             onClick={() => onNavigate("subscription-requests")}
-                            className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black rounded-lg active:scale-95 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                            className="px-2.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[9.5px] font-black rounded-lg active:scale-95 transition cursor-pointer flex items-center gap-1 shadow-sm"
                           >
                             <Crown className="w-3.5 h-3.5" />
-                            যাচাই করুন
+                            পেমেন্ট যাচাই
                           </button>
                         )}
                         <button
                           onClick={() => handleOpenManualPlan(c)}
-                          className="px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 hover:border-indigo-500 text-slate-700 dark:text-slate-300 text-[10px] font-black rounded-lg active:scale-95 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                          className="px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 hover:border-indigo-500 text-slate-700 dark:text-slate-300 text-[9.5px] font-black rounded-lg active:scale-95 transition cursor-pointer flex items-center gap-1 shadow-2xs"
                         >
-                          <Settings className="w-3.5 h-3.5 text-slate-400" />
-                          প্ল্যান পরিবর্তন করুন
+                          <Settings className="w-3.5 h-3.5 text-slate-450" />
+                          প্ল্যান পরিবর্তন
                         </button>
                       </div>
-
+ 
                     </div>
                   );
                 })}
