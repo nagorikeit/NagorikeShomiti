@@ -6,6 +6,7 @@ import { User } from "./types";
 import AuthView from "./components/AuthView";
 import { CompleteProfileView } from "./components/CompleteProfileView";
 import DashboardView from "./components/DashboardView";
+import AdminDashboardView from "./components/AdminDashboardView";
 import MemberListView from "./components/MemberListView";
 import MemberAddView from "./components/MemberAddView";
 import ProfileView from "./components/ProfileView";
@@ -680,7 +681,11 @@ export default function App() {
           transition={{ duration: 0.2, ease: "easeInOut" }}
         >
           {currentView === "dashboard" && (
-            <DashboardView currentUser={currentUser} onNavigate={handleNavigate} navigationParams={navigationParams} totalEntries={totalEntries} isNavVisible={isNavVisible} language={language} companyPlan={companyPlan} />
+            currentUser.role === "admin" ? (
+              <AdminDashboardView currentUser={currentUser} onNavigate={handleNavigate} language={language} />
+            ) : (
+              <DashboardView currentUser={currentUser} onNavigate={handleNavigate} navigationParams={navigationParams} totalEntries={totalEntries} isNavVisible={isNavVisible} language={language} companyPlan={companyPlan} />
+            )
           )}
 
           {currentView === "member-list" && (
