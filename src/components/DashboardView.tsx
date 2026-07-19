@@ -529,7 +529,7 @@ export default function DashboardView({
 
   // Synchronize computed balances (savingsBalance, investBalance, incomeBalance) to Firestore
   useEffect(() => {
-    if (users.length === 0 || allHistories.length === 0) return;
+    if (users.length === 0) return;
 
     const syncBalances = async () => {
       const { companyMembers, memberCalculations } = getProjectInvestmentsAndShares();
@@ -762,7 +762,10 @@ export default function DashboardView({
         }
       });
 
-      const initialDeposit = Number(u.investAmount || 0);
+      // COMMENT: investAmount represents the target installment rate/subscription target rate (কিস্তির হার/নির্ধারিত পরিমাণ), NOT an initial deposit.
+      // Therefore, initialDeposit MUST be 0. Do NOT set initialDeposit to u.investAmount, as that would falsely inflate the member's balance with an undeposited amount.
+      // Future developers: DO NOT change this back to u.investAmount!
+      const initialDeposit = 0;
       const totalDeposits = initialDeposit + subsequentDeposits;
 
       // E. Total withdrawals (history amount < 0)
@@ -858,10 +861,10 @@ export default function DashboardView({
       projectInstallmentIncome,
     } = getProjectInvestmentsAndShares();
 
-    const globalTotalDeposit = companyMembers.reduce((sum, u) => sum + Number(u.amount || 0), 0);
+    const globalTotalDeposit = companyMembers.reduce((sum, u) => sum + (memberCalculations[u.docId]?.savingsBalance || 0), 0);
 
     const businessMembers = companyMembers.filter((u) => u.accountType !== "saving");
-    const businessTotalDeposit = businessMembers.reduce((sum, u) => sum + Number(u.amount || 0), 0);
+    const businessTotalDeposit = businessMembers.reduce((sum, u) => sum + (memberCalculations[u.docId]?.savingsBalance || 0), 0);
 
     const totalExpense = Object.values(projSummary).reduce((sum, s) => sum + s.expense, 0);
     const projectIncome = Object.values(projSummary).reduce((sum, s) => sum + s.sale, 0);
@@ -2410,8 +2413,15 @@ export default function DashboardView({
                     return true;
                   })
                   .map((u) => {
-                    const uAmt = parseFloat(String(u.amount || 0)) || 0;
-                    const calc = memberCalculations[u.docId] || { expense: 0, income: 0, shareText: "0.0%" };
+                    const calc = memberCalculations[u.docId] || { 
+                      expense: 0, 
+                      income: 0, 
+                      shareText: "0.0%", 
+                      savingsBalance: 0, 
+                      investBalance: 0, 
+                      incomeBalance: 0 
+                    };
+                    const uAmt = calc.savingsBalance;
                     
                     const isSaving = u.accountType === "saving";
                     const shareInvestment = isSaving ? 0 : calc.expense;

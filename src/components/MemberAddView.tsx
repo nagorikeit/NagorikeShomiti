@@ -218,6 +218,9 @@ export default function MemberAddView({
       const cleanEmail = email.trim() ? email.trim() : "";
 
       // 3. Save to Firestore
+      // COMMENT: investAmount represents the target installment rate/subscription target rate (কিস্তির হার/নির্ধারিত পরিমাণ), NOT an initial balance.
+      // Therefore, the starting balances amount and savingsBalance MUST be 0 upon registration.
+      // Future developers: DO NOT change amount/savingsBalance to investAmount here, as it would incorrectly create an automatic deposit of money.
       await setDoc(doc(db, "users", memberId), {
         uid: uid,
         userId: memberId,
@@ -230,13 +233,13 @@ export default function MemberAddView({
         nidType: nidType,
         accountType: accountType,
         InvestType: investType,
-        investAmount: investAmount,
+        investAmount: investAmount, // This is the installment target rate / subscription rate, NOT a deposit balance.
         investDate: investDate,
         role: "member",
         companyId: currentUser.docId,
         status: status,
-        amount: investAmount, // starting savings amount matches the first investment amount
-        savingsBalance: investAmount,
+        amount: 0, // CRITICAL: Starting balance must be 0.
+        savingsBalance: 0, // CRITICAL: Starting savings balance is 0 until they make a deposit transaction.
         incomeBalance: 0,
         createdAt: Date.now(),
         guardianRelation: guardianRelation,
@@ -263,22 +266,8 @@ export default function MemberAddView({
         console.error("Error setting phone_to_email mapping in MemberAddView:", e);
       }
 
-      // Write starting history if investAmount > 0
-      if (investAmount > 0) {
-        const historyCol = collection(db, "users", memberId, "history");
-        await addDoc(historyCol, {
-          amount: investAmount,
-          date: new Date().toISOString().split('T')[0],
-          memo: "প্রারম্ভিক সঞ্চয় ডিপোজিট (মেম্বার যোগদান)",
-          InvestType: investType,
-          accountType: accountType,
-          type: "saving",
-          flow: "IN",
-          paymentMethod: "cash",
-          createdAt: new Date().toISOString(),
-          projectName: "কোম্পানি (সাধারণ)",
-        });
-      }
+      // COMMENT: Removed the automatic "প্রারম্ভিক সঞ্চয় ডিপোজিট" history record because investAmount is the target installment rate, not actual deposited money.
+      // Do not write any saving history record upon member addition. All initial balances are 0.
 
       showToast("🎉 মেম্বার সফলভাবে যোগ হয়েছে!");
       setTimeout(() => onNavigate("member-list"), 1500);
@@ -499,15 +488,24 @@ export default function MemberAddView({
                   {errors.investType && <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.investType}</p>}
                 </div>
 
+                {/* 
+                  COMMENT: This input is for the target savings/installment amount rate (কিস্তির হার/নির্ধারিত পরিমাণ).
+                  This amount is NOT an initial deposit or balance. It represents the subscription/installment rate.
+                */}
                 <div>
-                  <label className="block text-xs text-slate-600 font-semibold mb-1">টাকার পরিমাণ</label>
+                  <label className="block text-xs text-slate-600 font-bold mb-1">
+                    সেভিংস কিস্তির নির্ধারিত পরিমাণ (প্রতি কিস্তিতে জমাযোগ্য টাকা) *
+                  </label>
                   <input
                     type="number"
                     value={investAmount || ""}
                     onChange={(e) => setInvestAmount(parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400"
-                    placeholder="৳ পরিমাণ"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none text-sm font-medium transition focus:border-blue-400 font-sans"
+                    placeholder="যেমন: ৫০০ (এটি প্রারম্ভিক জমা নয়, শুধু কিস্তির হার)"
                   />
+                  <p className="text-[10px] text-slate-500 font-semibold mt-1">
+                    ℹ️ এটি মেম্বারের প্রতিটি কিস্তির জন্য নির্ধারিত জমার হার। মেম্বার যুক্ত করার সময় এটি তার ব্যালেন্সে সরাসরি জমা হবে না।
+                  </p>
                 </div>
 
                 <div>
