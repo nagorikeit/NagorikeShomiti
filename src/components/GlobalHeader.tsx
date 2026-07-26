@@ -156,84 +156,108 @@ export default function GlobalHeader({
           {/* Center: Navigation Links for Desktop & Tablet */}
           {isActiveOrAdmin && (
             <nav className="hidden md:flex space-x-1">
-              <button
-                onClick={() => onNavigate("dashboard")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  currentView === "dashboard"
-                    ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
-                }`}
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                {t.dashboard}
-              </button>
-
-              <button
-                onClick={() => onNavigate("transactions")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  currentView === "transactions"
-                    ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
-                }`}
-              >
-                <ArrowLeftRight className="w-4 h-4" />
-                {t.transactions}
-              </button>
-
-              <button
-                onClick={() => onNavigate("deposit-withdraw")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  currentView === "deposit-withdraw"
-                    ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
-                }`}
-              >
-                <Plus className="w-4 h-4 text-indigo-500" />
-                {language === "bn" ? "জমা বা ডিপোজিট" : "Deposit"}
-              </button>
-
-              <button
-                onClick={() => onNavigate("cashout")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  currentView === "cashout"
-                    ? "bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
-                }`}
-              >
-                <Smartphone className="w-4 h-4 text-pink-500" />
-                {language === "bn" ? "ক্যাশ আউট" : "Cash Out"}
-              </button>
-
-              {currentUser.role !== "member" && (
-                <button
-                  onClick={() => onNavigate("subscription-requests")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    currentView === "subscription-requests"
-                      ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
-                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
-                  }`}
-                >
-                  <Crown className="w-4 h-4" />
-                  {language === "bn" ? "সাবস্ক্রিপশন" : "Subscriptions"}
-                </button>
-              )}
-
-              {(currentUser.role === "admin" || currentUser.email === "nagorikeitsheba@gmail.com") && (
-                <button
-                  onClick={() => onNavigate("ad-management")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    currentView === "ad-management"
-                      ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400"
-                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
-                  }`}
-                >
-                  <Megaphone className="w-4 h-4 text-indigo-500" />
-                  {language === "bn" ? "অ্যাড ম্যানেজমেন্ট" : "Ad Management"}
-                </button>
-              )}
-
-              {isCompanyOrAdmin && (
+              {currentUser.role === "admin" ? (
                 <>
+                  <button
+                    onClick={() => onNavigate("dashboard")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      currentView === "dashboard"
+                        ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                    }`}
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    {t.dashboard}
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("subscription-requests")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      currentView === "subscription-requests"
+                        ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                    }`}
+                  >
+                    <Crown className="w-4 h-4" />
+                    {language === "bn" ? "সাবস্ক্রিপশন" : "Subscriptions"}
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("ad-management")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      currentView === "ad-management"
+                        ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                    }`}
+                  >
+                    <Megaphone className="w-4 h-4 text-indigo-500" />
+                    {language === "bn" ? "অ্যাড ম্যানেজমেন্ট" : "Ad Management"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => onNavigate("dashboard")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      currentView === "dashboard"
+                        ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                    }`}
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    {t.dashboard}
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("transactions")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      currentView === "transactions"
+                        ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                    }`}
+                  >
+                    <ArrowLeftRight className="w-4 h-4" />
+                    {t.transactions}
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("deposit-withdraw")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      currentView === "deposit-withdraw"
+                        ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                    }`}
+                  >
+                    <Plus className="w-4 h-4 text-indigo-500" />
+                    {language === "bn" ? "জমা বা ডিপোজিট" : "Deposit"}
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("cashout")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      currentView === "cashout"
+                        ? "bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                    }`}
+                  >
+                    <Smartphone className="w-4 h-4 text-pink-500" />
+                    {language === "bn" ? "ক্যাশ আউট" : "Cash Out"}
+                  </button>
+
+                  {currentUser.role === "company" && (
+                    <button
+                      onClick={() => onNavigate("subscription-requests")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        currentView === "subscription-requests"
+                          ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                      }`}
+                    >
+                      <Crown className="w-4 h-4" />
+                      {language === "bn" ? "সাবস্ক্রিপশন" : "Subscriptions"}
+                    </button>
+                  )}
+
                   <button
                     onClick={() => onNavigate("member-list")}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -258,17 +282,19 @@ export default function GlobalHeader({
                     {t.arrears}
                   </button>
 
-                  <button
-                    onClick={() => onNavigate("member-add")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      currentView === "member-add"
-                        ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
-                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
-                    }`}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    {t.memberAddFull}
-                  </button>
+                  {currentUser.role === "company" && (
+                    <button
+                      onClick={() => onNavigate("member-add")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        currentView === "member-add"
+                          ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-950 dark:hover:text-slate-100"
+                      }`}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      {t.memberAddFull}
+                    </button>
+                  )}
                 </>
               )}
 
@@ -343,37 +369,41 @@ export default function GlobalHeader({
                         <UserIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {t.profile}
                       </button>
 
-                      <button
-                        onClick={() => {
-                          setShowProfileMenu(false);
-                          onNavigate("transactions");
-                        }}
-                        className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
-                      >
-                        <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {t.transactions}
-                      </button>
+                      {currentUser.role !== "admin" && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onNavigate("transactions");
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
+                          >
+                            <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {t.transactions}
+                          </button>
 
-                      <button
-                        onClick={() => {
-                          setShowProfileMenu(false);
-                          onNavigate("deposit-withdraw");
-                        }}
-                        className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-indigo-500" /> {language === "bn" ? "জমা বা ডিপোজিট" : "Deposit"}
-                      </button>
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onNavigate("deposit-withdraw");
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-indigo-500" /> {language === "bn" ? "জমা বা ডিপোজিট" : "Deposit"}
+                          </button>
 
-                      <button
-                        onClick={() => {
-                          setShowProfileMenu(false);
-                          onNavigate("cashout");
-                        }}
-                        className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
-                      >
-                        <Smartphone className="w-3.5 h-3.5 text-pink-500" /> {language === "bn" ? "ক্যাশ আউট (Cash Out)" : "Cash Out"}
-                      </button>
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onNavigate("cashout");
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
+                          >
+                            <Smartphone className="w-3.5 h-3.5 text-pink-500" /> {language === "bn" ? "ক্যাশ আউট (Cash Out)" : "Cash Out"}
+                          </button>
+                        </>
+                      )}
 
-                      {currentUser.role !== "member" && (
+                      {currentUser.role === "company" && (
                         <button
                           onClick={() => {
                             setShowProfileMenu(false);
@@ -385,7 +415,19 @@ export default function GlobalHeader({
                         </button>
                       )}
 
-                      {isCompanyOrAdmin && isActiveOrAdmin && (
+                      {currentUser.role === "admin" && (
+                        <button
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                            onNavigate("subscription-requests");
+                          }}
+                          className="w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-slate-100"
+                        >
+                          <Crown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {language === "bn" ? "সাবস্ক্রিপশন রিকোয়েস্ট" : "Subscription Requests"}
+                        </button>
+                      )}
+
+                      {currentUser.role === "company" && isActiveOrAdmin && (
                         <>
                           <button
                             onClick={() => {
@@ -565,32 +607,82 @@ export default function GlobalHeader({
             isNavVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"
           }`}>
             <div className="flex items-center justify-around h-14 px-1 relative">
-              <button
-                onClick={() => onNavigate("dashboard")}
-                className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
-                  currentView === "dashboard"
-                    ? "text-blue-600 scale-105 font-black"
-                    : "text-slate-500 hover:text-slate-800 font-bold"
-                }`}
-              >
-                <LayoutDashboard className={`w-5 h-5 transition-transform ${currentView === "dashboard" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
-                <span className="text-[9px] tracking-tight">{t.dashboard}</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate("transactions")}
-                className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
-                  currentView === "transactions"
-                    ? "text-blue-600 scale-105 font-black"
-                    : "text-slate-500 hover:text-slate-800 font-bold"
-                }`}
-              >
-                <ArrowLeftRight className={`w-5 h-5 transition-transform ${currentView === "transactions" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
-                <span className="text-[9px] tracking-tight">{t.transactions}</span>
-              </button>
-
-              {isCompanyOrAdmin ? (
+              {currentUser.role === "admin" ? (
                 <>
+                  <button
+                    onClick={() => onNavigate("dashboard")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "dashboard"
+                        ? "text-blue-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <LayoutDashboard className={`w-5 h-5 transition-transform ${currentView === "dashboard" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{t.dashboard}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("subscription-requests")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "subscription-requests"
+                        ? "text-amber-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <Crown className={`w-5 h-5 transition-transform ${currentView === "subscription-requests" ? "scale-110 text-amber-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{language === "bn" ? "সাবস্ক্রিপশন" : "Subscriptions"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("ad-management")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "ad-management"
+                        ? "text-indigo-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <Megaphone className={`w-5 h-5 transition-transform ${currentView === "ad-management" ? "scale-110 text-indigo-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{language === "bn" ? "বিজ্ঞাপন" : "Ads"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("profile")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "profile"
+                        ? "text-blue-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <UserIcon className={`w-5 h-5 transition-transform ${currentView === "profile" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{t.profile}</span>
+                  </button>
+                </>
+              ) : isCompanyOrAdmin ? (
+                <>
+                  <button
+                    onClick={() => onNavigate("dashboard")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "dashboard"
+                        ? "text-blue-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <LayoutDashboard className={`w-5 h-5 transition-transform ${currentView === "dashboard" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{t.dashboard}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onNavigate("transactions")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "transactions"
+                        ? "text-blue-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <ArrowLeftRight className={`w-5 h-5 transition-transform ${currentView === "transactions" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{t.transactions}</span>
+                  </button>
+
                   {/* Central Large Round Prominent Entry Button */}
                   <div className="flex-1 flex justify-center py-1 select-none">
                     <button
@@ -629,6 +721,18 @@ export default function GlobalHeader({
                 </>
               ) : (
                 <>
+                  <button
+                    onClick={() => onNavigate("dashboard")}
+                    className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${
+                      currentView === "dashboard"
+                        ? "text-blue-600 scale-105 font-black"
+                        : "text-slate-500 hover:text-slate-800 font-bold"
+                    }`}
+                  >
+                    <LayoutDashboard className={`w-5 h-5 transition-transform ${currentView === "dashboard" ? "scale-110 text-blue-600" : "text-slate-400"}`} />
+                    <span className="text-[9px] tracking-tight">{t.dashboard}</span>
+                  </button>
+
                   <button
                     onClick={() => onNavigate("deposit-withdraw")}
                     className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-200 cursor-pointer ${

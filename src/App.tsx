@@ -225,25 +225,25 @@ export default function App() {
 
   // Dynamic application name and manifest based on user's company
   const [appName, setAppName] = useState("নগরীক সমিতি");
-  const [appIcon, setAppIcon] = useState("/app_icon.jpg");
+  const [appIcon, setAppIcon] = useState("/app_icon.png");
 
   useEffect(() => {
     if (!currentUser) {
       setAppName("নগরীক সমিতি");
-      setAppIcon("/app_icon.jpg");
+      setAppIcon("/app_icon.png");
       return;
     }
 
     if (currentUser.role === "admin") {
       setAppName(currentUser.name || "সুপার এডমিন");
-      setAppIcon(currentUser.profilePic || "/app_icon.jpg");
+      setAppIcon(currentUser.profilePic || "/app_icon.png");
       return;
     }
 
     if (currentUser.role === "company") {
       const name = currentUser.companyName || currentUser.name || "নগরীক সমিতি";
       setAppName(name);
-      setAppIcon(currentUser.profilePic || "/app_icon.jpg");
+      setAppIcon(currentUser.profilePic || "/app_icon.png");
       return;
     }
 
@@ -254,20 +254,20 @@ export default function App() {
           const companyData = snap.data();
           const name = companyData.companyName || companyData.name || "নগরীক সমিতি";
           setAppName(name);
-          setAppIcon(companyData.profilePic || "/app_icon.jpg");
+          setAppIcon(companyData.profilePic || "/app_icon.png");
         } else {
           setAppName("নগরীক সমিতি");
-          setAppIcon("/app_icon.jpg");
+          setAppIcon("/app_icon.png");
         }
       }, (err) => {
         console.error("Error listening to company name for manifest:", err);
         setAppName("নগরীক সমিতি");
-        setAppIcon("/app_icon.jpg");
+        setAppIcon("/app_icon.png");
       });
       return () => unsub();
     } else {
       setAppName("নগরীক সমিতি");
-      setAppIcon("/app_icon.jpg");
+      setAppIcon("/app_icon.png");
     }
   }, [currentUser]);
 
@@ -276,23 +276,15 @@ export default function App() {
     // Update Document Title
     document.title = appName;
 
-    // Update Favicon and Apple Touch Icon in document head
-    let faviconLink = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
-    if (!faviconLink) {
-      faviconLink = document.createElement("link");
-      faviconLink.rel = "icon";
-      faviconLink.type = "image/jpeg";
-      document.head.appendChild(faviconLink);
-    }
-    faviconLink.href = appIcon;
-
-    let appleIconLink = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
-    if (!appleIconLink) {
-      appleIconLink = document.createElement("link");
-      appleIconLink.rel = "apple-touch-icon";
-      document.head.appendChild(appleIconLink);
-    }
-    appleIconLink.href = appIcon;
+    // Update all Favicons, Shortcut, and Apple Touch Icons in document head
+    const iconLinks = document.querySelectorAll(
+      'link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"]'
+    );
+    iconLinks.forEach((link) => {
+      link.setAttribute("href", appIcon);
+      const isPng = !appIcon.endsWith(".jpg") && !appIcon.endsWith(".jpeg");
+      link.setAttribute("type", isPng ? "image/png" : "image/jpeg");
+    });
 
     // Build customized dynamic manifest object
     const manifest = {

@@ -16,6 +16,7 @@ import {
 import { db, auth } from "../firebase";
 import { User, Project, Transaction, Installment, HistoryEntry, InstallmentStep } from "../types";
 import GoogleAdComponent from "./GoogleAdComponent";
+import GroupFundView from "./GroupFundView";
 import {
   STATUS_LABELS,
   STATUS_COLORS,
@@ -96,7 +97,7 @@ interface DashboardViewProps {
   companyPlan?: "free" | "monthly" | "yearly";
 }
 
-type TabMode = "invest" | "projects" | "ledger";
+type TabMode = "invest" | "projects" | "ledger" | "group-fund";
 
 export default function DashboardView({ 
   currentUser, 
@@ -2351,33 +2352,57 @@ export default function DashboardView({
       </div>
 
       {/* Tabs */}
-      <div className="mx-4 mt-5 bg-white border border-slate-200 rounded-2xl overflow-hidden flex shadow-sm">
+      <div className="mx-4 mt-5 p-1.5 bg-slate-100/80 dark:bg-slate-800/40 rounded-2xl flex flex-wrap gap-1.5 border border-slate-200/60 dark:border-slate-700/50 shadow-sm">
         <button
           onClick={() => setActiveTab("invest")}
-          className={`flex-1 py-4 text-xs font-bold transition-all relative ${
-            activeTab === "invest" ? "text-blue-600 bg-blue-50/40" : "text-slate-400"
+          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex-1 min-w-[125px] md:flex-initial md:min-w-[140px] ${
+            activeTab === "invest"
+              ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/50 dark:border-slate-700"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-slate-900/40 border border-transparent"
           }`}
         >
-          ইনভেস্টর
-          {activeTab === "invest" && <span className="absolute bottom-0 left-1/4 right-1/4 h-[3px] bg-blue-600 rounded-full"></span>}
+          <Coins className={`w-4 h-4 transition-transform duration-200 ${activeTab === "invest" ? "scale-110 text-blue-500" : "text-slate-400"}`} />
+          <span>{language === "bn" ? "ইনভেস্টর" : "Investors"}</span>
         </button>
+
         <button
           onClick={() => setActiveTab("projects")}
-          className={`flex-1 py-4 text-xs font-bold transition-all relative ${
-            activeTab === "projects" ? "text-blue-600 bg-blue-50/40" : "text-slate-400"
+          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex-1 min-w-[125px] md:flex-initial md:min-w-[140px] ${
+            activeTab === "projects"
+              ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/50 dark:border-slate-700"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-slate-900/40 border border-transparent"
           }`}
         >
-          প্রজেক্ট
-          {activeTab === "projects" && <span className="absolute bottom-0 left-1/4 right-1/4 h-[3px] bg-blue-600 rounded-full"></span>}
+          <Briefcase className={`w-4 h-4 transition-transform duration-200 ${activeTab === "projects" ? "scale-110 text-blue-500" : "text-slate-400"}`} />
+          <span>{language === "bn" ? "প্রজেক্ট" : "Projects"}</span>
         </button>
+
         <button
           onClick={() => setActiveTab("ledger")}
-          className={`flex-1 py-4 text-xs font-bold transition-all relative ${
-            activeTab === "ledger" ? "text-blue-600 bg-blue-50/40" : "text-slate-400"
+          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex-1 min-w-[125px] md:flex-initial md:min-w-[140px] ${
+            activeTab === "ledger"
+              ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/50 dark:border-slate-700"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-slate-900/40 border border-transparent"
           }`}
         >
-          {currentUser.role === "member" && !currentUser.canSeeAllData ? "আমার কিস্তি" : "কিস্তি লেজার"}
-          {activeTab === "ledger" && <span className="absolute bottom-0 left-1/4 right-1/4 h-[3px] bg-blue-600 rounded-full"></span>}
+          <FileText className={`w-4 h-4 transition-transform duration-200 ${activeTab === "ledger" ? "scale-110 text-blue-500" : "text-slate-400"}`} />
+          <span>
+            {language === "bn"
+              ? (currentUser.role === "member" && !currentUser.canSeeAllData ? "আমার কিস্তি" : "কিস্তি লেজার")
+              : (currentUser.role === "member" && !currentUser.canSeeAllData ? "My Installments" : "Installment Ledger")}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("group-fund")}
+          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex-1 min-w-[125px] md:flex-initial md:min-w-[140px] ${
+            activeTab === "group-fund"
+              ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/50 dark:border-slate-700"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-slate-900/40 border border-transparent"
+          }`}
+        >
+          <Users className={`w-4 h-4 transition-transform duration-200 ${activeTab === "group-fund" ? "scale-110 text-blue-500" : "text-slate-400"}`} />
+          <span>{language === "bn" ? "গ্রুপ ফান্ড" : "Group Fund"}</span>
         </button>
       </div>
 
@@ -2599,6 +2624,11 @@ export default function DashboardView({
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* GROUP FUND VIEW */}
+        {activeTab === "group-fund" && (
+          <GroupFundView currentUser={currentUser} language={language} />
         )}
 
         {/* Non-intrusive Banner Ads at the bottom of main view for Free users */}

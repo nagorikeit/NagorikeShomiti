@@ -475,7 +475,7 @@ export default function AdminDashboardView({
           pendingRequestsCount > 0 ? "border-rose-300 dark:border-rose-900 bg-rose-50/5 dark:bg-rose-950/5 animate-pulse" : "border-slate-200 dark:border-slate-800"
         }`}>
           <div className="space-y-1">
-            <p className="text-[9px] font-black tracking-wider uppercase text-rose-500">পেন্ডিং সাবস্ক্রিপশন</p>
+            <p className="text-[9px] font-black tracking-wider uppercase text-rose-500">পেন্ডিং সাবস্ক্রিপশন রিকোয়েস্ট</p>
             <h3 className={`text-xl sm:text-2xl font-black font-mono ${pendingRequestsCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-600 dark:text-slate-400"}`}>
               {pendingRequestsCount} <span className="text-[10px] font-bold text-slate-400">টি</span>
             </h3>

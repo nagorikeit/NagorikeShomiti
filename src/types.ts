@@ -201,5 +201,83 @@ export interface CompanyPaymentAccount {
   createdAt: string;
 }
 
+export interface GroupFund {
+  id: string;
+  companyId: string;
+  name: string;
+  type: "lottery" | "serial" | "emergency" | "education" | "qurbani" | "travel" | "custom";
+  totalMembers: number;
+  installmentAmount: number;
+  cycle: "daily" | "weekly" | "monthly";
+  startDate: string;
+  endDate: string;
+  durationValue: number; // number of cycles (days, weeks, months)
+  distributionMethod: "lottery" | "serial" | "custom";
+  lotteryDate?: string;
+  penaltyRule?: string;
+  penaltyAmount?: number;
+  minMembers: number;
+  description?: string;
+  status: "active" | "completed" | "closed";
+  createdAt: string;
+  collectedAmount: number;
+  distributedAmount: number;
+}
 
+export interface GroupMember {
+  id: string;
+  groupFundId: string;
+  companyId: string;
+  userId: string;
+  userName: string;
+  userMobile?: string;
+  serialNumber?: number; // for serial-based payouts
+  joinedAt: string;
+  totalPaid: number;
+  hasReceivedPayout: boolean;
+  receivedPayoutAmount?: number;
+  receivedPayoutDate?: string;
+}
 
+export interface GroupInstallment {
+  id: string;
+  groupFundId: string;
+  installmentIndex: number; // 1, 2, 3...
+  dueDate: string;
+  status: "open" | "distributed" | "closed";
+}
+
+export interface GroupPayment {
+  id: string;
+  groupFundId: string;
+  installmentIndex: number;
+  userId: string;
+  userName: string;
+  amount: number;
+  paymentDate: string;
+  status: "paid" | "unpaid" | "partial";
+  penaltyPaid?: number;
+  notes?: string;
+}
+
+export interface GroupPayout {
+  id: string;
+  groupFundId: string;
+  installmentIndex?: number;
+  userId: string;
+  userName: string;
+  amount: number;
+  payoutDate: string;
+  notes?: string;
+  lotteryResultId?: string;
+}
+
+export interface GroupHistory {
+  id: string;
+  groupFundId: string;
+  type: "create" | "join" | "payment" | "payout" | "lottery" | "complete" | "status_change";
+  message: string;
+  createdAt: string;
+  operatorId: string;
+  operatorName: string;
+}
