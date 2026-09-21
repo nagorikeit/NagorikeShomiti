@@ -841,80 +841,93 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
                   </div>
 
                   {/* Summary Box Showing the 3 Items */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-700 space-y-1.5">
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">প্রেরণকৃত তথ্য:</div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-500 font-semibold">🌐 ওয়েবসাইট:</span>
-                      <span className="text-indigo-600 font-medium break-all">{window.location.origin}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-500 font-semibold">📱 আইডি (মোবাইল):</span>
-                      <span className="text-slate-900 font-bold">{otpTarget.mobile || ""}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-500 font-semibold">🔑 ওয়ান-টাইম পাসওয়ার্ড:</span>
-                      <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{otpPass}</span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const samityName = (currentUser.role === "company" 
+                      ? (currentUser.companyName || currentUser.name) 
+                      : (otpTarget.companyId 
+                          ? (allUsers.find((u) => u.docId === otpTarget.companyId || u.userId === otpTarget.companyId)?.companyName 
+                             || allUsers.find((u) => u.docId === otpTarget.companyId || u.userId === otpTarget.companyId)?.name)
+                          : "")) || currentUser.companyName || currentUser.name || "সমিতি";
 
-                  <div className="space-y-2">
-                    {/* Send WhatsApp Message */}
-                    {(() => {
-                      const waPhone = otpTarget.mobile ? otpTarget.mobile.replace(/\D/g, "") : "";
-                      const formattedWaPhone = waPhone.startsWith("0") && waPhone.length === 11 ? "88" + waPhone : waPhone;
-                      const textMsg = `আসসালামু আলাইকুম ${otpTarget.name || ""},\nআপনার সমিতির একাউন্টের লগইন তথ্য:\n\n🌐 ওয়েবসাইট:\n${window.location.origin}\n\n📱 আইডি (মোবাইল নম্বর): ${otpTarget.mobile || ""}\n🔑 ওয়ান-টাইম পাসওয়ার্ড: ${otpPass}\n\nওয়েবসাইটে লগইন করে আপনার পাসওয়ার্ড পরিবর্তন করে নিন। ধন্যবাদ!`;
-                      const waUrl = `https://wa.me/${formattedWaPhone}?text=${encodeURIComponent(textMsg)}`;
+                    const waPhone = otpTarget.mobile ? otpTarget.mobile.replace(/\D/g, "") : "";
+                    const formattedWaPhone = waPhone.startsWith("0") && waPhone.length === 11 ? "88" + waPhone : waPhone;
+                    
+                    const textMsg = `আসসালামু আলাইকুম ${otpTarget.name || ""},\n${samityName}-এ আপনার একাউন্টের লগইন তথ্য:\n\n🌐 ওয়েবসাইট:\n${window.location.origin}\n\n📱 আইডি (মোবাইল নম্বর): ${otpTarget.mobile || ""}\n🔑 ওয়ান-টাইম পাসওয়ার্ড: ${otpPass}\n\nওয়েবসাইটে লগইন করে আপনার পাসওয়ার্ড পরিবর্তন করে নিন। ধন্যবাদ!\n-${samityName}`;
 
-                      return (
-                        <a
-                          href={waUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center shadow-sm"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          <span>হোয়াটসঅ্যাপের মাধ্যমে পাঠান</span>
-                        </a>
-                      );
-                    })()}
+                    const emailSubject = `${samityName}-এ আপনার একাউন্টের লগইন তথ্য ও ওটিপি পাসওয়ার্ড`;
+                    const textToCopy = `আসসালামু আলাইকুম ${otpTarget.name || ""}, ${samityName}-এ আপনার একাউন্টের লগইন তথ্য:\nওয়েবসাইট: ${window.location.origin}\nআইডি (মোবাইল): ${otpTarget.mobile || ""}\nওয়ান-টাইম পাসওয়ার্ড: ${otpPass}`;
 
-                    {/* Send Email */}
-                    {otpTarget.email && (
-                      <a
-                        href={`mailto:${otpTarget.email}?subject=${encodeURIComponent("সমিতির একাউন্টের লগইন তথ্য ও ওটিপি পাসওয়ার্ড")}&body=${encodeURIComponent(
-                          `আসসালামু আলাইকুম ${otpTarget.name || ""},\nআপনার সমিতির একাউন্টের লগইন তথ্য:\n\n🌐 ওয়েবসাইট:\n${window.location.origin}\n\n📱 আইডি (মোবাইল নম্বর): ${otpTarget.mobile || ""}\n🔑 ওয়ান-টাইম পাসওয়ার্ড: ${otpPass}\n\nওয়েবসাইটে লগইন করে আপনার পাসওয়ার্ড পরিবর্তন করে নিন। ধন্যবাদ!`
-                        )}`}
-                        className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center shadow-sm"
-                      >
-                        <Mail className="w-4 h-4" />
-                        <span>ইমেলের মাধ্যমে পাঠান</span>
-                      </a>
-                    )}
+                    return (
+                      <>
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-700 space-y-1.5">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">প্রেরণকৃত তথ্য:</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-500 font-semibold">🏢 সমিতি / প্রতিষ্ঠান:</span>
+                            <span className="text-emerald-700 font-bold">{samityName}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-500 font-semibold">🌐 ওয়েবসাইট:</span>
+                            <span className="text-indigo-600 font-medium break-all">{window.location.origin}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-500 font-semibold">📱 আইডি (মোবাইল):</span>
+                            <span className="text-slate-900 font-bold">{otpTarget.mobile || ""}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-500 font-semibold">🔑 ওয়ান-টাইম পাসওয়ার্ড:</span>
+                            <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{otpPass}</span>
+                          </div>
+                        </div>
 
-                    {/* Copy Text for SMS */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const textToCopy = `আসসালামু আলাইকুম ${otpTarget.name || ""}, আপনার সমিতির লগইন তথ্য:\nওয়েবসাইট: ${window.location.origin}\nআইডি (মোবাইল): ${otpTarget.mobile || ""}\nওয়ান-টাইম পাসওয়ার্ড: ${otpPass}`;
-                        navigator.clipboard.writeText(textToCopy);
-                        setOtpCopied(true);
-                        setTimeout(() => setOtpCopied(false), 2000);
-                      }}
-                      className="w-full py-2.5 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                    >
-                      {otpCopied ? (
-                        <>
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span className="text-emerald-400">মেসেজ কপি হয়েছে!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4" />
-                          <span>এসএমএস হিসেবে কপি করুন</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                        <div className="space-y-2">
+                          {/* Send WhatsApp Message */}
+                          <a
+                            href={`https://wa.me/${formattedWaPhone}?text=${encodeURIComponent(textMsg)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center shadow-sm"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            <span>হোয়াটসঅ্যাপের মাধ্যমে পাঠান</span>
+                          </a>
+
+                          {/* Send Email */}
+                          {otpTarget.email && (
+                            <a
+                              href={`mailto:${otpTarget.email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(textMsg)}`}
+                              className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center shadow-sm"
+                            >
+                              <Mail className="w-4 h-4" />
+                              <span>ইমেলের মাধ্যমে পাঠান</span>
+                            </a>
+                          )}
+
+                          {/* Copy Text for SMS */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(textToCopy);
+                              setOtpCopied(true);
+                              setTimeout(() => setOtpCopied(false), 2000);
+                            }}
+                            className="w-full py-2.5 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                          >
+                            {otpCopied ? (
+                              <>
+                                <Check className="w-4 h-4 text-emerald-400" />
+                                <span className="text-emerald-400">মেসেজ কপি হয়েছে!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4" />
+                                <span>এসএমএস হিসেবে কপি করুন</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
