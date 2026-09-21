@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, where, onSnapshot, collectionGroup, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, collectionGroup, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { User } from "./types";
+import { normalizePhoneNumber } from "./utils/firestore";
 import AuthView from "./components/AuthView";
 import { CompleteProfileView } from "./components/CompleteProfileView";
 import DashboardView from "./components/DashboardView";
@@ -120,7 +121,7 @@ export default function App() {
     const q = query(collection(db, "users"), where("uid", "==", firebaseUser.uid));
     const unsub = onSnapshot(
       q,
-      (snapshot) => {
+      async (snapshot) => {
         if (!snapshot.empty) {
           const docData = snapshot.docs[0];
           const u = { docId: docData.id, ...docData.data() } as User;
@@ -143,7 +144,30 @@ export default function App() {
             setCurrentView((prev) => (prev === "login" ? "dashboard" : prev));
           }
         } else {
-          // No profile doc found (could be newly registered/lag)
+          // If no profile doc found by uid (e.g. recreation/lag), try fallback by firebaseAuthEmail or mobile
+          try {
+            if (firebaseUser.email) {
+              const emailQ = query(collection(db, "users"), where("firebaseAuthEmail", "==", firebaseUser.email));
+              const emailSnap = await getDocs(emailQ);
+              if (!emailSnap.empty) {
+                const matchedDoc = emailSnap.docs[0];
+                await updateDoc(doc(db, "users", matchedDoc.id), { uid: firebaseUser.uid });
+                return;
+              }
+            }
+            if (firebaseUser.email && firebaseUser.email.endsWith("@samitymanager.com")) {
+              const phone = firebaseUser.email.split("@")[0];
+              const phoneQ = query(collection(db, "users"), where("mobile", "==", phone));
+              const phoneSnap = await getDocs(phoneQ);
+              if (!phoneSnap.empty) {
+                const matchedDoc = phoneSnap.docs[0];
+                await updateDoc(doc(db, "users", matchedDoc.id), { uid: firebaseUser.uid });
+                return;
+              }
+            }
+          } catch (fallbackErr) {
+            console.warn("Fallback user profile lookup error:", fallbackErr);
+          }
           setCurrentUser(null);
         }
         setAuthStateLoading(false);
@@ -531,18 +555,22 @@ export default function App() {
           
           for (const d of usersSnap.docs) {
             const data = d.data();
-            if (data.mobile) {
+            const rawPhone = data.mobile;
+            if (rawPhone) {
+              const normMobile = normalizePhoneNumber(rawPhone);
               const companyData = data.companyId ? usersMap.get(data.companyId) : null;
               const companyWhatsapp = companyData?.whatsapp || companyData?.mobile || "";
               const memberResetSetting = companyData?.memberResetSetting || "both";
+              const validEmail = (data.email && data.email.includes("@")) ? data.email.trim() : (data.firebaseAuthEmail || `${normMobile}@samitymanager.com`);
+              const validAuthEmail = data.firebaseAuthEmail || validEmail;
 
-              const phoneRef = doc(db, "phone_to_email", data.mobile);
+              const phoneRef = doc(db, "phone_to_email", normMobile);
               const phoneSnap = await getDoc(phoneRef);
               const existingMapping = phoneSnap.exists() ? phoneSnap.data() : null;
               
               if (
                 !existingMapping || 
-                existingMapping.email !== (data.email || "") || 
+                existingMapping.email !== validEmail || 
                 !existingMapping.name || 
                 !existingMapping.password || 
                 !existingMapping.firebaseAuthEmail || 
@@ -552,8 +580,8 @@ export default function App() {
                 existingMapping.memberResetSetting !== memberResetSetting
               ) {
                 await setDoc(phoneRef, {
-                  email: data.email || "",
-                  firebaseAuthEmail: data.firebaseAuthEmail || (data.email && data.email.includes("@") ? data.email : `${data.mobile}@samitymanager.com`),
+                  email: validEmail,
+                  firebaseAuthEmail: validAuthEmail,
                   userId: d.id,
                   name: data.name || "",
                   password: data.password || "",
@@ -561,6 +589,7 @@ export default function App() {
                   companyId: data.companyId || "",
                   companyWhatsapp: companyWhatsapp,
                   memberResetSetting: memberResetSetting,
+                  mobile: normMobile,
                 }, { merge: true });
               }
             }

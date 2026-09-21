@@ -567,15 +567,21 @@ export default function ProfileView({
         const memberResetSettingVal = isMemberVal ? (currentUser?.memberResetSetting || "both") : "";
 
         const phoneRef = doc(db, "phone_to_email", normMobile);
+        const resolvedEmail = (email.trim() && email.trim().includes("@"))
+          ? email.trim()
+          : ((targetUser as any)?.firebaseAuthEmail || `${normMobile}@samitymanager.com`);
+        const resolvedAuthEmail = (targetUser as any)?.firebaseAuthEmail || resolvedEmail;
+
         const mappingUpdate: Record<string, any> = {
-          email: email.trim(),
-          firebaseAuthEmail: (targetUser as any)?.firebaseAuthEmail || (email.trim() && email.trim().includes("@") ? email.trim() : `${normMobile}@samitymanager.com`),
+          email: resolvedEmail,
+          firebaseAuthEmail: resolvedAuthEmail,
           userId: activeId,
           name: name.trim(),
           role: roleVal,
           companyId: companyIdVal,
           companyWhatsapp: companyWhatsappVal,
           memberResetSetting: memberResetSettingVal,
+          mobile: normMobile,
         };
         
         if (isOwnProfile) {

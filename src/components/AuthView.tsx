@@ -3,11 +3,13 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  updatePassword,
 } from "firebase/auth";
 import {
   doc,
   setDoc,
   getDoc,
+  updateDoc,
   runTransaction,
   collection,
   query,
@@ -73,33 +75,31 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
       const mappingRef = doc(db, "phone_to_email", normalized);
       const mappingSnap = await getDoc(mappingRef);
       if (mappingSnap.exists()) {
-        return mappingSnap.data().email as string;
+        const mData = mappingSnap.data();
+        const foundEmail = (mData.firebaseAuthEmail && mData.firebaseAuthEmail.trim().includes("@"))
+          ? mData.firebaseAuthEmail.trim()
+          : (mData.email && mData.email.trim().includes("@"))
+            ? mData.email.trim()
+            : null;
+        if (foundEmail) return foundEmail;
+        return `${normalized}@samitymanager.com`;
       }
     } catch (e) {
       console.warn("Fast phone mapping lookup not available:", e);
     }
 
-    // Direct construction fallback for standard format
+    // Direct construction fallback for standard 11-digit Bangladesh phone numbers
     if (/^01[3-9]\d{8}$/.test(normalized)) {
-      const constructedEmail = `${normalized}@samitymanager.com`;
-      try {
-        const q = query(collection(db, "users"), where("mobile", "==", normalized));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          return snap.docs[0].data().email as string || constructedEmail;
-        }
-      } catch (e) {
-        console.warn("Fallback query failed:", e);
-      }
-      return constructedEmail;
+      return `${normalized}@samitymanager.com`;
     }
 
-    // Fallback if the mapping does not exist (e.g. legacy/unsynced users)
+    // Fallback if the mapping does not exist (e.g. legacy/unsynced users or custom IDs)
     try {
       const q = query(collection(db, "users"), where("mobile", "==", normalized));
       const snap = await getDocs(q);
       if (!snap.empty) {
-        return snap.docs[0].data().email as string;
+        const uData = snap.docs[0].data();
+        return uData.firebaseAuthEmail || (uData.email && uData.email.includes("@") ? uData.email : `${normalized}@samitymanager.com`);
       }
     } catch (e) {
       console.warn("Unable to perform fallback users query:", e);
@@ -118,19 +118,76 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
     setError("");
 
     try {
-      const targetEmail = await getEmailFromIdentifier(loginIdentifier.trim());
+      const trimmedId = loginIdentifier.trim();
+      const normalizedPhone = normalizePhoneNumber(trimmedId);
+      const targetEmail = await getEmailFromIdentifier(trimmedId);
       if (!targetEmail) {
         throw new Error("User not found");
       }
 
-      await signInWithEmailAndPassword(auth, targetEmail, loginPassword);
+      const trimmedPass = loginPassword.trim();
+
+      // Step A: Attempt standard Firebase Auth sign-in
+      try {
+        await signInWithEmailAndPassword(auth, targetEmail, trimmedPass);
+      } catch (authErr: any) {
+        console.warn("Primary signIn failed, checking OTP / phone_to_email fallback:", authErr.code);
+        let recovered = false;
+
+        // Step B: Check phone_to_email for one-time password / admin-set password
+        if (normalizedPhone) {
+          try {
+            const mappingSnap = await getDoc(doc(db, "phone_to_email", normalizedPhone));
+            if (mappingSnap.exists()) {
+              const mData = mappingSnap.data();
+              const storedPassword = (mData.password || "").trim();
+
+              // If the entered password exactly matches the OTP/password set by the admin
+              if (storedPassword && storedPassword === trimmedPass) {
+                // If account does not exist in Firebase Auth yet or invalid credential, create or update
+                if (authErr.code === "auth/user-not-found" || authErr.code === "auth/invalid-credential") {
+                  try {
+                    const newCred = await createUserWithEmailAndPassword(auth, targetEmail, trimmedPass);
+                    // Also link uid if users doc exists
+                    if (mData.userId) {
+                      await updateDoc(doc(db, "users", mData.userId), { uid: newCred.user.uid }).catch(() => {});
+                    }
+                    recovered = true;
+                  } catch (createErr: any) {
+                    console.warn("Could not create Firebase Auth account on login fallback:", createErr);
+                    // If account already exists with old password, try logging in with known defaults and update to this OTP
+                    const oldPassOptions = [mData.oldPassword, "123456", normalizedPhone].filter(Boolean);
+                    for (const oldPass of oldPassOptions) {
+                      try {
+                        const oldCred = await signInWithEmailAndPassword(auth, targetEmail, oldPass as string);
+                        await updatePassword(oldCred.user, trimmedPass);
+                        recovered = true;
+                        break;
+                      } catch (oldErr) {
+                        // ignore and try next
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch (mapErr) {
+            console.warn("Mapping check fallback error:", mapErr);
+          }
+        }
+
+        if (!recovered) {
+          throw authErr;
+        }
+      }
+
       showToast(t.loginSuccess);
       onSuccess();
     } catch (err: any) {
-      console.error(err);
+      console.error("Login submission error:", err);
       if (err.message === "User not found") {
         setError(language === "bn" ? "❌ এই মোবাইল নম্বর বা ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি!" : "❌ No account found with this mobile number or email!");
-      } else if (err.code === "auth/invalid-credential") {
+      } else if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
         setError(language === "bn" ? "❌ পাসওয়ার্ডটি ভুল হয়েছে!" : "❌ Incorrect password!");
       } else {
         setError(err.message || t.loginError);
@@ -298,7 +355,13 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
           const mappingSnap = await getDoc(mappingRef);
           if (mappingSnap.exists()) {
             mappedData = mappingSnap.data();
-            targetEmail = mappedData.email as string;
+            targetEmail = (mappedData.firebaseAuthEmail && mappedData.firebaseAuthEmail.includes("@"))
+              ? mappedData.firebaseAuthEmail.trim()
+              : (mappedData.email && mappedData.email.includes("@"))
+                ? mappedData.email.trim()
+                : `${normalized}@samitymanager.com`;
+          } else if (validPhone) {
+            targetEmail = `${normalized}@samitymanager.com`;
           }
         } catch (e) {
           console.warn(e);

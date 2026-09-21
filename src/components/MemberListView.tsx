@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { collection, doc, deleteDoc, updateDoc, onSnapshot, getDocs, addDoc } from "firebase/firestore";
+import { collection, doc, deleteDoc, updateDoc, onSnapshot, getDocs, addDoc, setDoc } from "firebase/firestore";
 import { db, secondaryAuth } from "../firebase";
 import { User } from "../types";
 import {
@@ -9,6 +9,7 @@ import {
   ACCT_LABELS,
   INVEST_LABELS,
   formatBDT,
+  normalizePhoneNumber,
 } from "../utils/firestore";
 import { Search, Plus, ArrowLeft, Trash2, ToggleRight, User as UserIcon, Key, Mail, MessageSquare, Copy, Check, ShieldAlert } from "lucide-react";
 
@@ -141,54 +142,86 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
       alert("অনুগ্রহ করে একটি ওটিপি পাসওয়ার্ড লিখুন");
       return;
     }
+    if (trimmedPass.length < 6) {
+      alert("পাসওয়ার্ড বা ওটিপি কমপক্ষে ৬ অক্ষরের হতে হবে");
+      return;
+    }
     setOtpSending(true);
     try {
       // Normalize mobile number
       const rawMobile = otpTarget.mobile || "";
-      const normMobile = rawMobile.replace(/\D/g, "");
-      const memberEmail = otpTarget.firebaseAuthEmail || otpTarget.email || `${normMobile}@samitymanager.com`;
+      const normMobile = normalizePhoneNumber(rawMobile);
+      const memberEmail = (otpTarget.firebaseAuthEmail && otpTarget.firebaseAuthEmail.includes("@"))
+        ? otpTarget.firebaseAuthEmail.trim()
+        : (otpTarget.email && otpTarget.email.includes("@"))
+          ? otpTarget.email.trim()
+          : `${normMobile}@samitymanager.com`;
       const oldPassword = otpTarget.password || "";
 
       // 1. Update in secondaryAuth
       const { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut } = await import("firebase/auth");
       
-      if (oldPassword) {
+      let authUpdated = false;
+      let newUid: string | null = null;
+      const passwordsToTry = [oldPassword, "123456", normMobile].filter(Boolean);
+
+      for (const passToTry of passwordsToTry) {
         try {
-          const secCred = await signInWithEmailAndPassword(secondaryAuth, memberEmail, oldPassword);
+          const secCred = await signInWithEmailAndPassword(secondaryAuth, memberEmail, passToTry);
           await updatePassword(secCred.user, trimmedPass);
           await signOut(secondaryAuth);
-          console.log("Successfully updated password in Firebase Auth via secondaryAuth");
+          authUpdated = true;
+          console.log("Successfully updated password in Firebase Auth via secondaryAuth with", passToTry);
+          break;
         } catch (authErr: any) {
-          console.warn("Could not update secondary password via login, trying creation:", authErr);
-          if (authErr.code === "auth/user-not-found" || authErr.code === "auth/invalid-credential" || authErr.code === "auth/cannot-delete-owner") {
-            try {
-              await createUserWithEmailAndPassword(secondaryAuth, memberEmail, trimmedPass);
-              await signOut(secondaryAuth);
-            } catch (createErr) {
-              console.warn("Failed to create secondaryAuth account on-demand:", createErr);
-            }
-          }
+          console.warn("Failed secondaryAuth login with", passToTry, authErr);
         }
-      } else {
+      }
+
+      if (!authUpdated) {
+        // If could not log in with existing passwords, attempt creating account if not already created
         try {
-          await createUserWithEmailAndPassword(secondaryAuth, memberEmail, trimmedPass);
+          const createCred = await createUserWithEmailAndPassword(secondaryAuth, memberEmail, trimmedPass);
+          newUid = createCred.user.uid;
           await signOut(secondaryAuth);
-        } catch (createErr) {
-          console.warn("Failed to create secondaryAuth account for new password:", createErr);
+          authUpdated = true;
+          console.log("Successfully created user in secondaryAuth with new password");
+        } catch (createErr: any) {
+          console.warn("Could not create user in secondaryAuth:", createErr);
         }
       }
 
       // 2. Update user collection doc
-      await updateDoc(doc(db, "users", otpTarget.docId), {
+      const updateData: Record<string, any> = {
         password: trimmedPass,
+        firebaseAuthEmail: memberEmail,
         requirePasswordChange: otpRequireChange,
-      });
+      };
+      if (newUid) {
+        updateData.uid = newUid;
+      }
+      await updateDoc(doc(db, "users", otpTarget.docId), updateData);
 
-      // 3. Update phone_to_email mapping
+      // Local state update for immediate sync
+      otpTarget.password = trimmedPass;
+      otpTarget.firebaseAuthEmail = memberEmail;
+      if (newUid) otpTarget.uid = newUid;
+
+      // 3. Update or create phone_to_email mapping
       if (normMobile) {
-        await updateDoc(doc(db, "phone_to_email", normMobile), {
+        await setDoc(doc(db, "phone_to_email", normMobile), {
+          email: (otpTarget.email && otpTarget.email.includes("@")) ? otpTarget.email.trim() : memberEmail,
+          firebaseAuthEmail: memberEmail,
+          userId: otpTarget.userId || otpTarget.docId,
+          name: otpTarget.name || "",
           password: trimmedPass,
-        }).catch((err) => console.warn("Failed to update phone_to_email password mapping:", err));
+          role: "member",
+          companyId: otpTarget.companyId || currentUser.docId,
+          companyWhatsapp: currentUser.whatsapp || currentUser.mobile || "",
+          memberResetSetting: currentUser.memberResetSetting || "both",
+          mobile: normMobile,
+          requirePasswordChange: otpRequireChange,
+        }, { merge: true });
       }
 
       setOtpSuccess(true);
@@ -804,7 +837,24 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
                   </span>
                   
                   <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 text-[10px] font-medium rounded-xl p-3 leading-relaxed">
-                    পাসওয়ার্ড সফলভাবে ডেটাবেজে সংরক্ষিত হয়েছে। এখন মেম্বারের ইমেল বা মোবাইলে এটি প্রেরণ করার জন্য নিচের মাধ্যমগুলো ব্যবহার করতে পারেন:
+                    পাসওয়ার্ড সফলভাবে সংরক্ষিত হয়েছে। সদস্যের জন্য ওয়েবসাইট লিংক, আইডি (মোবাইল নম্বর) ও ওয়ান-টাইম পাসওয়ার্ড নিচে সাজিয়ে দেওয়া হলো:
+                  </div>
+
+                  {/* Summary Box Showing the 3 Items */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-700 space-y-1.5">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">প্রেরণকৃত তথ্য:</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-semibold">🌐 ওয়েবসাইট:</span>
+                      <span className="text-indigo-600 font-medium break-all">{window.location.origin}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-semibold">📱 আইডি (মোবাইল):</span>
+                      <span className="text-slate-900 font-bold">{otpTarget.mobile || ""}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-semibold">🔑 ওয়ান-টাইম পাসওয়ার্ড:</span>
+                      <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{otpPass}</span>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -812,7 +862,7 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
                     {(() => {
                       const waPhone = otpTarget.mobile ? otpTarget.mobile.replace(/\D/g, "") : "";
                       const formattedWaPhone = waPhone.startsWith("0") && waPhone.length === 11 ? "88" + waPhone : waPhone;
-                      const textMsg = `আসসালামু আলাইকুম ${otpTarget.name || ""},\nআপনার সমিতির একাউন্টের ওয়ান-টাইম পাসওয়ার্ড (OTP) সেট করা হয়েছে।\n\n🔑 নতুন পাসওয়ার্ড: ${otpPass}\n🌐 লগইন করুন: ${window.location.origin}\n\nধন্যবাদ!`;
+                      const textMsg = `আসসালামু আলাইকুম ${otpTarget.name || ""},\nআপনার সমিতির একাউন্টের লগইন তথ্য:\n\n🌐 ওয়েবসাইট:\n${window.location.origin}\n\n📱 আইডি (মোবাইল নম্বর): ${otpTarget.mobile || ""}\n🔑 ওয়ান-টাইম পাসওয়ার্ড: ${otpPass}\n\nওয়েবসাইটে লগইন করে আপনার পাসওয়ার্ড পরিবর্তন করে নিন। ধন্যবাদ!`;
                       const waUrl = `https://wa.me/${formattedWaPhone}?text=${encodeURIComponent(textMsg)}`;
 
                       return (
@@ -823,7 +873,7 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
                           className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center shadow-sm"
                         >
                           <MessageSquare className="w-4 h-4" />
-                          <span>হোয়াটসঅ্যাপের মাধ্যমে ওটিপি পাঠান</span>
+                          <span>হোয়াটসঅ্যাপের মাধ্যমে পাঠান</span>
                         </a>
                       );
                     })()}
@@ -831,13 +881,13 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
                     {/* Send Email */}
                     {otpTarget.email && (
                       <a
-                        href={`mailto:${otpTarget.email}?subject=${encodeURIComponent("সমিতির একাউন্টের ওটিপি পাসওয়ার্ড")}&body=${encodeURIComponent(
-                          `আসসালামু আলাইকুম ${otpTarget.name || ""},\nআপনার সমিতির একাউন্টের ওয়ান-টাইম পাসওয়ার্ড (OTP) সেট করা হয়েছে।\n\n🔑 নতুন পাসওয়ার্ড: ${otpPass}\n🌐 লগইন করুন: ${window.location.origin}\n\nধন্যবাদ!`
+                        href={`mailto:${otpTarget.email}?subject=${encodeURIComponent("সমিতির একাউন্টের লগইন তথ্য ও ওটিপি পাসওয়ার্ড")}&body=${encodeURIComponent(
+                          `আসসালামু আলাইকুম ${otpTarget.name || ""},\nআপনার সমিতির একাউন্টের লগইন তথ্য:\n\n🌐 ওয়েবসাইট:\n${window.location.origin}\n\n📱 আইডি (মোবাইল নম্বর): ${otpTarget.mobile || ""}\n🔑 ওয়ান-টাইম পাসওয়ার্ড: ${otpPass}\n\nওয়েবসাইটে লগইন করে আপনার পাসওয়ার্ড পরিবর্তন করে নিন। ধন্যবাদ!`
                         )}`}
                         className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer no-underline text-center shadow-sm"
                       >
                         <Mail className="w-4 h-4" />
-                        <span>ইমেলের মাধ্যমে ওটিপি পাঠান</span>
+                        <span>ইমেলের মাধ্যমে পাঠান</span>
                       </a>
                     )}
 
@@ -845,7 +895,7 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
                     <button
                       type="button"
                       onClick={() => {
-                        const textToCopy = `আসসালামু আলাইকুম ${otpTarget.name || ""}, আপনার সমিতির একাউন্টের ওয়ান-টাইম পাসওয়ার্ড (OTP) সেট করা হয়েছে। নতুন পাসওয়ার্ড: ${otpPass}। লগইন করুন: ${window.location.origin}। ধন্যবাদ!`;
+                        const textToCopy = `আসসালামু আলাইকুম ${otpTarget.name || ""}, আপনার সমিতির লগইন তথ্য:\nওয়েবসাইট: ${window.location.origin}\nআইডি (মোবাইল): ${otpTarget.mobile || ""}\nওয়ান-টাইম পাসওয়ার্ড: ${otpPass}`;
                         navigator.clipboard.writeText(textToCopy);
                         setOtpCopied(true);
                         setTimeout(() => setOtpCopied(false), 2000);

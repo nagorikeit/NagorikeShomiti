@@ -252,7 +252,7 @@ export default function MemberAddView({
       // Write phone to email mapping for easy lookup before login
       try {
         await setDoc(doc(db, "phone_to_email", normalizedPhone), {
-          email: cleanEmail,
+          email: cleanEmail || memberEmail,
           firebaseAuthEmail: memberEmail,
           userId: memberId,
           name: name,
@@ -261,7 +261,8 @@ export default function MemberAddView({
           companyId: currentUser.docId,
           companyWhatsapp: currentUser.whatsapp || currentUser.mobile || "",
           memberResetSetting: currentUser.memberResetSetting || "both",
-        });
+          mobile: normalizedPhone,
+        }, { merge: true });
       } catch (e) {
         console.error("Error setting phone_to_email mapping in MemberAddView:", e);
       }
