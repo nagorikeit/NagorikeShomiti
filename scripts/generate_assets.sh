@@ -2,6 +2,7 @@
 set -e
 
 SRC_LOGO="./src/assets/images/amar_somiti_logo_1790106703913.jpg"
+FONT_PATH="./src/assets/fonts/NotoSansBengali.ttf"
 
 echo "=== 1. Generating Public PWA and Web Icons ==="
 mkdir -p public
@@ -45,41 +46,52 @@ convert "$SRC_LOGO" -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_l
 convert "$SRC_LOGO" -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
 convert -size 432x432 xc:none \( "$SRC_LOGO" -resize 280x280 \) -gravity center -composite android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
 
-echo "=== 3. Generating Pure Minimalist Android Splash Screens ==="
-# Default drawable
+echo "=== 3. Creating Master Unified Splash Badge (Logo + Typography) ==="
+# 1. Prepare rounded emblem with soft modern drop shadow
+convert "$SRC_LOGO" -resize 300x300 \( +clone -alpha transparent -background none -fill white -draw "roundrectangle 0,0 300,300 68,68" \) -compose DstIn -composite /tmp/logo_round.png
+
+# 2. Render master splash center with proper Bengali typography
+ffmpeg -y \
+  -f lavfi -i "color=c=white:s=800x800:d=1" \
+  -i /tmp/logo_round.png \
+  -filter_complex "[1:v]scale=280:280[logo];[0:v][logo]overlay=(W-w)/2:130[bg];[bg]drawtext=fontfile=${FONT_PATH}:text='আমার সমিতি':fontcolor=#1e293b:fontsize=50:x=(w-text_w)/2:y=460,drawtext=fontfile=${FONT_PATH}:text='“সমিতির সব হিসাব, এক জায়গায়”':fontcolor=#059669:fontsize=24:x=(w-text_w)/2:y=530" \
+  -frames:v 1 /tmp/splash_master_badge.png
+
+echo "=== 4. Generating All Android Splash Screens with Master Badge ==="
+# Default drawable (480x800)
 mkdir -p android/app/src/main/res/drawable
-convert -size 480x800 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 220x220 \) -gravity center -composite android/app/src/main/res/drawable/splash.png
+convert -size 480x800 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 440x440 \) -gravity center -composite android/app/src/main/res/drawable/splash.png
 
 # Portrait splash screens
 mkdir -p android/app/src/main/res/drawable-port-mdpi
-convert -size 320x480 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 150x150 \) -gravity center -composite android/app/src/main/res/drawable-port-mdpi/splash.png
+convert -size 320x480 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 300x300 \) -gravity center -composite android/app/src/main/res/drawable-port-mdpi/splash.png
 
 mkdir -p android/app/src/main/res/drawable-port-hdpi
-convert -size 480x800 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 220x220 \) -gravity center -composite android/app/src/main/res/drawable-port-hdpi/splash.png
+convert -size 480x800 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 440x440 \) -gravity center -composite android/app/src/main/res/drawable-port-hdpi/splash.png
 
 mkdir -p android/app/src/main/res/drawable-port-xhdpi
-convert -size 720x1280 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 320x320 \) -gravity center -composite android/app/src/main/res/drawable-port-xhdpi/splash.png
+convert -size 720x1280 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 640x640 \) -gravity center -composite android/app/src/main/res/drawable-port-xhdpi/splash.png
 
 mkdir -p android/app/src/main/res/drawable-port-xxhdpi
-convert -size 960x1600 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 420x420 \) -gravity center -composite android/app/src/main/res/drawable-port-xxhdpi/splash.png
+convert -size 960x1600 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 800x800 \) -gravity center -composite android/app/src/main/res/drawable-port-xxhdpi/splash.png
 
 mkdir -p android/app/src/main/res/drawable-port-xxxhdpi
-convert -size 1280x1920 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 520x520 \) -gravity center -composite android/app/src/main/res/drawable-port-xxxhdpi/splash.png
+convert -size 1280x1920 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 960x960 \) -gravity center -composite android/app/src/main/res/drawable-port-xxxhdpi/splash.png
 
 # Landscape splash screens
 mkdir -p android/app/src/main/res/drawable-land-mdpi
-convert -size 480x320 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 140x140 \) -gravity center -composite android/app/src/main/res/drawable-land-mdpi/splash.png
+convert -size 480x320 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 300x300 \) -gravity center -composite android/app/src/main/res/drawable-land-mdpi/splash.png
 
 mkdir -p android/app/src/main/res/drawable-land-hdpi
-convert -size 800x480 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 200x200 \) -gravity center -composite android/app/src/main/res/drawable-land-hdpi/splash.png
+convert -size 800x480 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 440x440 \) -gravity center -composite android/app/src/main/res/drawable-land-hdpi/splash.png
 
 mkdir -p android/app/src/main/res/drawable-land-xhdpi
-convert -size 1280x720 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 280x280 \) -gravity center -composite android/app/src/main/res/drawable-land-xhdpi/splash.png
+convert -size 1280x720 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 620x620 \) -gravity center -composite android/app/src/main/res/drawable-land-xhdpi/splash.png
 
 mkdir -p android/app/src/main/res/drawable-land-xxhdpi
-convert -size 1600x960 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 360x360 \) -gravity center -composite android/app/src/main/res/drawable-land-xxhdpi/splash.png
+convert -size 1600x960 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 800x800 \) -gravity center -composite android/app/src/main/res/drawable-land-xxhdpi/splash.png
 
 mkdir -p android/app/src/main/res/drawable-land-xxxhdpi
-convert -size 1920x1280 xc:"#FFFFFF" \( "$SRC_LOGO" -resize 440x440 \) -gravity center -composite android/app/src/main/res/drawable-land-xxxhdpi/splash.png
+convert -size 1920x1280 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 960x960 \) -gravity center -composite android/app/src/main/res/drawable-land-xxxhdpi/splash.png
 
-echo "=== Asset Generation Complete! ==="
+echo "=== Asset Generation Complete! All Splash Screens Unified. ==="
