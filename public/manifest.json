@@ -6,11 +6,23 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
   "background_color": "#0f172a",
   "theme_color": "#0284c7",
-  "orientation": "portrait",
+  "orientation": "any",
+  "dir": "ltr",
   "lang": "bn-BD",
-  "categories": ["finance", "business", "productivity"],
+  "categories": [
+    "finance",
+    "business",
+    "productivity",
+    "utilities"
+  ],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/app_icon-192.png",
@@ -36,5 +48,68 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "নাগরিক সমিতি ড্যাশবোর্ড ওভারভিউ"
+    },
+    {
+      "src": "/screenshot-narrow.jpg",
+      "sizes": "720x1280",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "নাগরিক সমিতি মোবাইল ভিউ"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "সদস্য তালিকা",
+      "short_name": "সদস্য",
+      "description": "সকল সদস্যদের তালিকা দেখুন",
+      "url": "/#members",
+      "icons": [
+        {
+          "src": "/app_icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "জমা ও উত্তোলন",
+      "short_name": "লেনদেন",
+      "description": "দৈনিক জমা ও উত্তোলন লেনদেন",
+      "url": "/#transactions",
+      "icons": [
+        {
+          "src": "/app_icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "বকেয়া তালিকা",
+      "short_name": "বকেয়া",
+      "description": "বকেয়া কিস্তির হিসাব",
+      "url": "/#arrears",
+      "icons": [
+        {
+          "src": "/app_icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }

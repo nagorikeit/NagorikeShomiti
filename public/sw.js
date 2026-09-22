@@ -1,11 +1,19 @@
-// Progressive Web App Service Worker for Remix: নগরীক সমিতি
-const CACHE_NAME = "nagarika-samity-v2";
+// Progressive Web App Service Worker for নাগরিক সমিতি
+const CACHE_NAME = "nagarika-samity-v3";
 const OFFLINE_URL = "/index.html";
+const PRECACHE_ASSETS = [
+  OFFLINE_URL,
+  "/manifest.json",
+  "/app_icon-192.png",
+  "/app_icon-512.png"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll([OFFLINE_URL]).catch(() => {});
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn("Pre-cache warning:", err);
+      });
     })
   );
   self.skipWaiting();
@@ -24,6 +32,36 @@ self.addEventListener("activate", (event) => {
     })
   );
   self.clients.claim();
+});
+
+// Push notification support
+self.addEventListener("push", (event) => {
+  if (event.data) {
+    const data = event.data.json();
+    const options = {
+      body: data.body || "নাগরিক সমিতি থেকে নতুন নোটিফিকেশন",
+      icon: "/app_icon-192.png",
+      badge: "/app_icon-192.png",
+      data: { url: data.url || "/" }
+    };
+    event.waitUntil(self.registration.showNotification(data.title || "নাগরিক সমিতি", options));
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === "/" && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(event.notification.data?.url || "/");
+      }
+    })
+  );
 });
 
 // Network-first strategy to ensure real-time Firestore data and updates are never stale
