@@ -1,6 +1,6 @@
 {
-  "name": "নগরীক সমিতি",
-  "description": "নাগরিক আইটি সেবা",
+  "name": "নাগরিক সমিতি",
+  "description": "নাগরিক সমিতি - অনলাইন মেম্বার খাতা ও ডিজিটাল ড্যাশবোর্ড",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

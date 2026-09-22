@@ -25,6 +25,7 @@ import CashOutView from "./components/CashOutView";
 import { motion, AnimatePresence } from "motion/react";
 import { Download, X, Smartphone, Sparkles } from "lucide-react";
 import InstallGuideModal from "./components/InstallGuideModal";
+import { App as CapApp } from "@capacitor/app";
 
 type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw" | "ad-management" | "cashout";
 
@@ -99,6 +100,38 @@ export default function App() {
       setShowInstallGuide(true);
     }
   };
+
+  // Android Hardware Back Button listener
+  useEffect(() => {
+    let backListenerPromise: Promise<any> | null = null;
+    try {
+      backListenerPromise = CapApp.addListener("backButton", () => {
+        if (showInstallGuide) {
+          setShowInstallGuide(false);
+          return;
+        }
+        if (currentView !== "dashboard" && currentView !== "login") {
+          setCurrentView("dashboard");
+          return;
+        }
+        if (currentView === "dashboard") {
+          CapApp.exitApp();
+        }
+      });
+    } catch {
+      // Browser environment ignore
+    }
+
+    return () => {
+      if (backListenerPromise) {
+        backListenerPromise.then((listener) => {
+          if (listener && typeof listener.remove === "function") {
+            listener.remove();
+          }
+        }).catch(() => {});
+      }
+    };
+  }, [currentView, showInstallGuide]);
 
   // Monitor Auth State
   useEffect(() => {

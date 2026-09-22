@@ -1,24 +1,40 @@
 {
-  "name": "নগরীক সমিতি",
-  "short_name": "নগরীক সমিতি",
-  "description": "নাগরিক আইটি সেবা - সমিতির মেম্বার খাতা ও ড্যাশবোর্ড",
+  "id": "/",
+  "name": "নাগরিক সমিতি",
+  "short_name": "নাগরিক সমিতি",
+  "description": "নাগরিক আইটি সেবা - সমিতির মেম্বার খাতা ও ডিজিটাল ড্যাশবোর্ড",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0284c7",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
+  "lang": "bn-BD",
+  "categories": ["finance", "business", "productivity"],
   "icons": [
     {
-      "src": "/app_icon.jpg",
+      "src": "/app_icon-192.png",
       "sizes": "192x192",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/app_icon.jpg",
+      "src": "/app_icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/app_icon-512.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/app_icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

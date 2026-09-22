@@ -1,4 +1,4 @@
-package com.nagorike.somiti;
+package com.nagorikeshomiti.app;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.nagorikeshomiti.app",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7D:0F:52:AB:E0:85:41:86:11:24:28:29:3B:82:13:2F:88:CB:05:44:20:91:A4:44:2F:65:BC:90:A4",
+        "PLAY_STORE_APP_SIGNING_SHA256_FINGERPRINT_PLACEHOLDER"
+      ]
+    }
+  }
+]
