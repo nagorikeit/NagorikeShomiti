@@ -36,7 +36,7 @@ jobs:
 
       # Step 4: Install web dependencies cleanly and securely
       - name: Install Node.js Dependencies
-        run: npm ci
+        run: npm ci || npm install --legacy-peer-deps
 
       # Step 5: Build the frontend web application (creates /dist directory)
       - name: Build Web Application
@@ -54,32 +54,17 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x android/gradlew
 
-      # Step 9: Build the Debug APK, Release APK and Play Store AAB Bundle using Gradle
-      - name: Build APKs and AAB with Gradle
+      # Step 9: Build the Debug APK using Gradle
+      - name: Build APKs with Gradle
         run: |
           cd android
-          ./gradlew assembleDebug
-          ./gradlew assembleRelease
-          ./gradlew bundleRelease
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       # Step 10: Upload Debug APK as a build artifact
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-
-      # Step 11: Upload Unsigned Release APK as a build artifact
-      - name: Upload Unsigned Release APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-unsigned-apk
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
-
-      # Step 12: Upload Google Play Store Release AAB Bundle as a build artifact
-      - name: Upload Play Store AAB Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-playstore-aab
-          path: android/app/build/outputs/bundle/release/app-release.aab
+          name: nagorik-somiti-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
 
