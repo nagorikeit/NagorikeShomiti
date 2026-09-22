@@ -292,15 +292,15 @@ export default function App() {
     }
 
     if (currentUser.role === "admin") {
-      setAppName(currentUser.name || "সুপার এডমিন");
-      setAppIcon(currentUser.profilePic || "/app_icon.png");
+      setAppName(currentUser.name || "আমার সমিতি এডমিন");
+      setAppIcon("/app_icon.png");
       return;
     }
 
     if (currentUser.role === "company") {
       const name = currentUser.companyName || currentUser.name || "আমার সমিতি";
       setAppName(name);
-      setAppIcon(currentUser.profilePic || "/app_icon.png");
+      setAppIcon("/app_icon.png");
       return;
     }
 
@@ -309,9 +309,9 @@ export default function App() {
       const unsub = onSnapshot(companyRef, (snap) => {
         if (snap.exists()) {
           const companyData = snap.data();
-          const name = companyData.companyName || companyData.name || "নগরীক সমিতি";
+          const name = companyData.companyName || companyData.name || "আমার সমিতি";
           setAppName(name);
-          setAppIcon(companyData.profilePic || "/app_icon.png");
+          setAppIcon("/app_icon.png");
         } else {
           setAppName("নগরীক সমিতি");
           setAppIcon("/app_icon.png");
@@ -656,9 +656,20 @@ export default function App() {
 
   if (authStateLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
-        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-        <p className="mt-4 text-xs font-bold text-slate-400">লোডিং হচ্ছে...</p>
+      <div className="min-h-screen bg-white flex flex-col justify-center items-center px-4 select-none animate-fadeIn">
+        <div className="relative mb-4">
+          <img
+            src="/app_icon.png"
+            alt="আমার সমিতি"
+            className="w-24 h-24 rounded-3xl shadow-xl shadow-emerald-500/15 object-cover border border-emerald-50"
+          />
+        </div>
+        <h1 className="text-2xl font-black text-slate-800 tracking-tight">আমার সমিতি</h1>
+        <p className="text-xs font-bold text-emerald-600 mt-1 mb-6">“সমিতির সব হিসাব, এক জায়গায়”</p>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
+          <p className="text-[11px] font-bold text-slate-400">লোড হচ্ছে...</p>
+        </div>
       </div>
     );
   }

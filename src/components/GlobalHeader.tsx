@@ -140,14 +140,16 @@ export default function GlobalHeader({
             onClick={() => isActiveOrAdmin && onNavigate("dashboard")}
             className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition animate-fadeIn"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-              <Building2 className="w-5.5 h-5.5" />
-            </div>
+            <img
+              src="/app_icon.png"
+              alt="আমার সমিতি"
+              className="w-10 h-10 rounded-2xl object-cover shadow-md shadow-emerald-600/15 border border-emerald-100 dark:border-slate-800"
+            />
             <div>
               <span className="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100 tracking-tight block">
-                {displayCompanyName || currentUser.companyName || (language === "bn" ? "সোসাইটি ম্যানেজার" : "Society Manager")}
+                {displayCompanyName || currentUser.companyName || (language === "bn" ? "আমার সমিতি" : "Amar Somiti")}
               </span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold block -mt-0.5 uppercase tracking-wide">
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold block -mt-0.5 uppercase tracking-wide">
                 {currentUser.name} ({currentUser.role === "admin" ? t.admin : currentUser.role === "company" ? t.company : t.member})
               </span>
             </div>
