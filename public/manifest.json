@@ -166,5 +166,20 @@
       "text": "text",
       "url": "url"
     }
-  }
+  },
+  "file_handlers": [
+    {
+      "action": "/#import",
+      "name": "CSV ফাইল ইমপোর্ট",
+      "icons": [
+        {
+          "src": "/app_icon-96.png",
+          "sizes": "96x96"
+        }
+      ],
+      "accept": {
+        "text/csv": [".csv"]
+      }
+    }
+  ]
 }
