@@ -68,7 +68,7 @@ jobs:
       - name: Collect Generated APK
         run: |
           mkdir -p apk-output
-          find android/app/build/outputs/apk -name "*.apk" -exec cp {} apk-output/nagorik-somiti.apk \;
+          find android/app/build/outputs/apk -name "*.apk" -exec cp {} apk-output/amar-somiti.apk \;
           echo "=== APK File Generated Successfully ==="
           ls -lh apk-output/
 
@@ -76,7 +76,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: nagorik-somiti-android-apk
+          name: amar-somiti-android-apk
           path: apk-output/*.apk
           if-no-files-found: error
           retention-days: 30

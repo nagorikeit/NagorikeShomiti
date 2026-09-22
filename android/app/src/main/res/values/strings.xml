@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">নাগরিক সমিতি</string>
-    <string name="title_activity_main">নাগরিক সমিতি</string>
+    <string name="app_name">আমার সমিতি</string>
+    <string name="title_activity_main">আমার সমিতি</string>
     <string name="package_name">com.nagorikeshomiti.app</string>
     <string name="custom_url_scheme">com.nagorikeshomiti.app</string>
 </resources>

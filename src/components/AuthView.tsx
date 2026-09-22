@@ -526,10 +526,13 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
       </AnimatePresence>
 
       {/* Header */}
-      <header className="flex justify-between items-center p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md">
+      <header className="flex justify-between items-center p-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md">
         <div className="flex items-center gap-2">
           <Landmark className="w-5 h-5 text-white animate-pulse" />
-          <h1 className="text-lg font-bold tracking-tight">সমিতি ম্যানেজার</h1>
+          <div>
+            <h1 className="text-base font-bold tracking-tight">আমার সমিতি</h1>
+            <p className="text-[10px] text-emerald-100 font-medium">সমিতির সব হিসাব, এক জায়গায়</p>
+          </div>
         </div>
         <button
           onClick={() => {
@@ -564,12 +567,13 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
                 exit={{ opacity: 0, y: -20 }}
                 className="bg-white border border-slate-200 shadow-xl rounded-3xl p-7"
               >
-                <div className="flex justify-center mb-4">
-                  <div className="w-14 h-14 flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg">
+                <div className="flex justify-center mb-3">
+                  <div className="w-14 h-14 flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-lg">
                     <Lock className="text-white w-6 h-6" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-center text-slate-800 mb-6">স্বাগতম</h2>
+                <h2 className="text-2xl font-black text-center text-slate-800">আমার সমিতি</h2>
+                <p className="text-xs text-center text-emerald-600 font-bold mt-1 mb-6">“সমিতির সব হিসাব, এক জায়গায়”</p>
 
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
                   <div>
@@ -649,13 +653,14 @@ export default function AuthView({ onSuccess, language = "bn", setLanguage }: Au
                 exit={{ opacity: 0, y: -20 }}
                 className="bg-white border border-slate-200 shadow-xl rounded-3xl p-7"
               >
-                <div className="flex justify-center mb-4">
-                  <div className="w-14 h-14 flex items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 shadow-lg">
+                <div className="flex justify-center mb-3">
+                  <div className="w-14 h-14 flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-lg">
                     <Building2 className="text-white w-6 h-6" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-center text-slate-800">কোম্পানি রেজিস্ট্রেশন</h2>
-                <p className="text-center text-[11px] text-slate-500 mt-1.5 mb-5 leading-normal">
+                <h2 className="text-2xl font-black text-center text-slate-800">আমার সমিতি নিবন্ধন</h2>
+                <p className="text-xs text-center text-emerald-600 font-bold mt-1 mb-2">“সদস্য থেকে হিসাব—সবকিছু সহজে”</p>
+                <p className="text-center text-[11px] text-slate-500 mb-5 leading-normal">
                   রেজিস্ট্রেশনের পর অ্যাডমিন অ্যাপ্রুভ করলে ড্যাশবোর্ড ব্যবহার করতে পারবেন
                 </p>
 

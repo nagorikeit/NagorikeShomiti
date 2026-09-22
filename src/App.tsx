@@ -281,12 +281,12 @@ export default function App() {
   }, [currentUser]);
 
   // Dynamic application name and manifest based on user's company
-  const [appName, setAppName] = useState("নগরীক সমিতি");
+  const [appName, setAppName] = useState("আমার সমিতি");
   const [appIcon, setAppIcon] = useState("/app_icon.png");
 
   useEffect(() => {
     if (!currentUser) {
-      setAppName("নগরীক সমিতি");
+      setAppName("আমার সমিতি");
       setAppIcon("/app_icon.png");
       return;
     }
@@ -298,7 +298,7 @@ export default function App() {
     }
 
     if (currentUser.role === "company") {
-      const name = currentUser.companyName || currentUser.name || "নগরীক সমিতি";
+      const name = currentUser.companyName || currentUser.name || "আমার সমিতি";
       setAppName(name);
       setAppIcon(currentUser.profilePic || "/app_icon.png");
       return;

@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.nagorikeshomiti.app',
-  appName: 'নাগরিক সমিতি',
+  appName: 'আমার সমিতি',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
