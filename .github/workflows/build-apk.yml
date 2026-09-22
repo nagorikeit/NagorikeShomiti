@@ -36,6 +36,9 @@ jobs:
       # Step 4: Setup Gradle Environment
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+          validate-wrappers: false
 
       # Step 5: Install Dependencies
       - name: Install Node Dependencies
@@ -56,8 +59,9 @@ jobs:
       # Step 8: Build Pure Android Debug APK
       - name: Build Android Debug APK
         run: |
-          chmod +x android/gradlew
           cd android
+          gradle wrapper --gradle-version 8.14.3
+          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
       # Step 9: Prepare APK Output
