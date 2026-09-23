@@ -46,18 +46,22 @@ convert "$SRC_LOGO" -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_l
 convert "$SRC_LOGO" -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
 convert -size 432x432 xc:none \( "$SRC_LOGO" -resize 280x280 \) -gravity center -composite android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
 
-echo "=== 3. Creating Master Unified Splash Badge (Logo + Typography) ==="
-# 1. Prepare rounded emblem with soft modern drop shadow
-convert "$SRC_LOGO" -resize 300x300 \( +clone -alpha transparent -background none -fill white -draw "roundrectangle 0,0 300,300 68,68" \) -compose DstIn -composite /tmp/logo_round.png
+echo "=== 3. Creating Master Splash Emblem (Pure White, No Black Artifacts) ==="
+# 1. Clean feathered circular blend on pure white canvas to prevent any corner clipping
+convert -size 340x340 xc:black -fill white -draw "circle 170,170 170,18" -blur 0x2 /tmp/circle_mask.png
+convert -size 340x340 xc:white \
+  \( "$SRC_LOGO" -resize 340x340 \) \
+  /tmp/circle_mask.png \
+  -composite /tmp/logo_silky_white.png
 
-# 2. Render master splash center with proper Bengali typography
+# 2. Render master splash badge with pure white background and crisp typography
 ffmpeg -y \
   -f lavfi -i "color=c=white:s=800x800:d=1" \
-  -i /tmp/logo_round.png \
-  -filter_complex "[1:v]scale=280:280[logo];[0:v][logo]overlay=(W-w)/2:130[bg];[bg]drawtext=fontfile=${FONT_PATH}:text='আমার সমিতি':fontcolor=#1e293b:fontsize=50:x=(w-text_w)/2:y=460,drawtext=fontfile=${FONT_PATH}:text='“সমিতির সব হিসাব, এক জায়গায়”':fontcolor=#059669:fontsize=24:x=(w-text_w)/2:y=530" \
+  -i /tmp/logo_silky_white.png \
+  -filter_complex "[1:v]scale=340:340[logo];[0:v][logo]overlay=(W-w)/2:120[bg];[bg]drawtext=fontfile=${FONT_PATH}:text='আমার সমিতি':fontcolor=#1e293b:fontsize=56:x=(w-text_w)/2:y=490,drawtext=fontfile=${FONT_PATH}:text='সমিতির সব হিসাব, এক জায়গায়':fontcolor=#059669:fontsize=26:x=(w-text_w)/2:y=565" \
   -frames:v 1 /tmp/splash_master_badge.png
 
-echo "=== 4. Generating All Android Splash Screens with Master Badge ==="
+echo "=== 4. Generating All Android Splash Screens (100% Pure White Background) ==="
 # Default drawable (480x800)
 mkdir -p android/app/src/main/res/drawable
 convert -size 480x800 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 440x440 \) -gravity center -composite android/app/src/main/res/drawable/splash.png
@@ -94,4 +98,4 @@ convert -size 1600x960 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 800x
 mkdir -p android/app/src/main/res/drawable-land-xxxhdpi
 convert -size 1920x1280 xc:"#FFFFFF" \( /tmp/splash_master_badge.png -resize 960x960 \) -gravity center -composite android/app/src/main/res/drawable-land-xxxhdpi/splash.png
 
-echo "=== Asset Generation Complete! All Splash Screens Unified. ==="
+echo "=== Asset Generation Complete! All Splash Screens Flawless. ==="
