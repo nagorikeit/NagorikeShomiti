@@ -4,6 +4,7 @@ import { User } from "../types";
 import { doc, getDoc, collection, query, where, getDocs, limit, onSnapshot } from "firebase/firestore";
 import { LayoutDashboard, Users, UserPlus, User as UserIcon, LogOut, Building2, AlertCircle, Bell, ArrowLeftRight, Plus, Sun, Moon, Globe, Settings, Crown, Smartphone, Download, Megaphone } from "lucide-react";
 import { translations, Language } from "../utils/translations";
+import OfflineSyncBadge from "./OfflineSyncBadge";
 
 interface GlobalHeaderProps {
   currentUser: User;
@@ -316,6 +317,9 @@ export default function GlobalHeader({
 
           {/* Right: User Menu & Notification Bell */}
           <div className="flex items-center gap-2">
+            {/* Realtime Offline & Cloud Sync Status Badge */}
+            <OfflineSyncBadge />
+
             {/* Elegant Header Notification Bell */}
             {isActiveOrAdmin && (
               <button

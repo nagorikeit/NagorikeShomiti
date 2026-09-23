@@ -2410,71 +2410,241 @@ export default function DashboardView({
       <main className="p-4">
         {/* INVESTOR VIEW */}
         {activeTab === "invest" && (
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
-            <table className="min-w-max w-full text-xs text-left divide-y divide-slate-100">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide font-extrabold text-[10px]">
-                <tr>
-                  <th className="p-3">নাম</th>
-                  <th className="p-3 text-right">মোট জমা (ডিপোজিট)</th>
-                  <th className="p-3 text-center">শেয়ার %</th>
-                  <th className="p-3 text-right text-rose-500">শেয়ার ইনভেস্টমেন্ট (খরচ)</th>
-                  <th className="p-3 text-right text-blue-600">সক্রিয় ব্যালেন্স</th>
-                  <th className="p-3 text-right text-emerald-600 font-extrabold">শেয়ার লভ্যাংশ (আয়)</th>
-                  <th className="p-3 text-right font-black">মোট নেট মূল্য</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {users
-                  .filter((u) => {
-                    if (u.role !== "member") return false;
-                    // If member and cannot see all, they only see themselves
-                    if (currentUser.role === "member" && !currentUser.canSeeAllData) {
-                      return u.docId === currentUser.docId;
-                    }
-                    // For company, only members of that company
-                    if (currentUser.role === "company") {
-                      return u.companyId === currentUser.docId;
-                    }
-                    return true;
-                  })
-                  .map((u) => {
-                    const calc = memberCalculations[u.docId] || { 
-                      expense: 0, 
-                      income: 0, 
-                      shareText: "0.0%", 
-                      savingsBalance: 0, 
-                      investBalance: 0, 
-                      incomeBalance: 0 
-                    };
-                    const uAmt = calc.savingsBalance;
-                    
-                    const isSaving = u.accountType === "saving";
-                    const shareInvestment = isSaving ? 0 : calc.expense;
-                    const activeBalance = isSaving ? uAmt : uAmt - calc.expense;
-                    const shareProfit = isSaving ? 0 : calc.income;
-                    const netWorth = activeBalance + shareProfit;
+          currentUser.role === "member" && !currentUser.canSeeAllData ? (
+            (() => {
+              const myMember = users.find((u) => u.docId === currentUser.docId) || currentUser;
+              const calc = memberCalculations[myMember.docId] || { 
+                expense: 0, 
+                income: 0, 
+                shareText: "0.0%", 
+                savingsBalance: 0, 
+                investBalance: 0, 
+                incomeBalance: 0 
+              };
+              const uAmt = calc.savingsBalance;
+              const isSaving = myMember.accountType === "saving";
+              const shareInvestment = isSaving ? 0 : calc.expense;
+              const activeBalance = isSaving ? uAmt : uAmt - calc.expense;
+              const shareProfit = isSaving ? 0 : calc.income;
+              const netWorth = activeBalance + shareProfit;
 
-                    return (
-                      <tr
-                        key={u.docId}
-                        onClick={() => handleShowUserHistory(u)}
-                        className="hover:bg-slate-50/80 cursor-pointer transition font-medium"
-                      >
-                        <td className="p-3 font-bold text-blue-700">{u.name}</td>
-                        <td className="p-3 text-right font-bold text-slate-700">৳{formatNum(uAmt)}</td>
-                        <td className="p-3 text-center text-blue-600 font-bold">{calc.shareText}</td>
-                        <td className="p-3 text-right text-rose-500 font-bold">৳{formatNum(shareInvestment)}</td>
-                        <td className="p-3 text-right text-blue-600 font-bold">৳{formatNum(activeBalance)}</td>
-                        <td className="p-3 text-right text-emerald-600 font-bold">৳{formatNum(shareProfit)}</td>
-                        <td className={`p-3 text-right font-black ${netWorth >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
-                          ৳{formatNum(netWorth)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
+              return (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden p-5 sm:p-7 transition-all">
+                  {/* Top Member Info Banner */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-blue-500/20 shrink-0">
+                        {myMember.name ? myMember.name.slice(0, 2).toUpperCase() : "সদ"}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-lg sm:text-xl font-extrabold text-slate-800 dark:text-white">
+                            {myMember.name}
+                          </h2>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                            {isSaving ? "সাধারণ সঞ্চয়ী সদস্য" : "ইনভেস্টর সদস্য"}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            ব্যক্তিগত হিসাব
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+                          <span>মোবাইল: {myMember.phone || "তথ্য নেই"}</span>
+                          {myMember.memberNo && (
+                            <>
+                              <span>•</span>
+                              <span>সদস্য নং: #{myMember.memberNo}</span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleShowUserHistory(myMember)}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-300 font-bold text-xs transition border border-blue-200 dark:border-blue-800 shadow-xs cursor-pointer active:scale-98"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>বিস্তারিত লেজার ও ভাউচার</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Hero Net Worth Highlight */}
+                  <div className={`mt-6 p-5 sm:p-6 rounded-2xl border transition-all ${
+                    netWorth >= 0 
+                      ? "bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-200/80 dark:border-emerald-800/60" 
+                      : "bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-transparent border-rose-200/80 dark:border-rose-800/60"
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[11px] font-extrabold tracking-wider uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <Coins className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          আমার মোট নেট মূল্য (Total Net Worth)
+                        </span>
+                        <div className="flex items-baseline gap-2 mt-1">
+                          <span className={`text-3xl sm:text-4xl font-black tracking-tight ${
+                            netWorth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                          }`}>
+                            ৳{formatNum(netWorth)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          সক্রিয় ব্যালেন্স এবং অর্জিত শেয়ার মুনাফার সমন্বিত নিট আর্থিক অবস্থান
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="bg-white dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">সমিতিতে শেয়ার %</p>
+                          <p className="text-lg font-black text-blue-600 dark:text-blue-400">{calc.shareText}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4 Core Financial Metric Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-5">
+                    {/* 1. মোট জমা */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 transition">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">মোট জমা (ডিপোজিট)</span>
+                        <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                          <PiggyBank className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <p className="text-xl font-extrabold text-slate-800 dark:text-white">৳{formatNum(uAmt)}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        {isSaving ? "আপনার জমাকৃত মোট সঞ্চয়" : "সমিতিতে আপনার মূল বিনিয়োগ জমা"}
+                      </p>
+                    </div>
+
+                    {/* 2. সক্রিয় ব্যালেন্স */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:border-sky-200 dark:hover:border-sky-800 transition">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">সক্রিয় ব্যালেন্স</span>
+                        <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                          <CreditCard className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <p className="text-xl font-extrabold text-blue-600 dark:text-blue-400">৳{formatNum(activeBalance)}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        খরচ বা বরাদ্দের পর বর্তমান অবশিষ্ট ব্যালেন্স
+                      </p>
+                    </div>
+
+                    {/* 3. শেয়ার ইনভেস্টমেন্ট (খরচ) */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:border-rose-200 dark:hover:border-rose-800 transition">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">শেয়ার খরচ / ইনভেস্টমেন্ট</span>
+                        <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                          <TrendingDown className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <p className="text-xl font-extrabold text-rose-500 dark:text-rose-400">৳{formatNum(shareInvestment)}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        প্রজেক্ট বা কার্যক্রমে আপনার শেয়ারের ব্যবহৃত খরচ
+                      </p>
+                    </div>
+
+                    {/* 4. শেয়ার লভ্যাংশ (আয়) */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:border-emerald-200 dark:hover:border-emerald-800 transition">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">শেয়ার লভ্যাংশ (মুনাফা)</span>
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                          <TrendingUp className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">৳{formatNum(shareProfit)}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        প্রজেক্ট মুনাফা থেকে আপনার অর্জিত মোট লাভ
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bottom Action Ribbon */}
+                  <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 text-center sm:text-left">
+                      💡 আপনার জমার রশিদ, কিস্তির বিবরণ ও তারিখ অনুযায়ী যাবতীয় হিসাবের বিস্তারিত দেখতে নিচের বাটনে ক্লিক করুন।
+                    </span>
+                    <button
+                      onClick={() => handleShowUserHistory(myMember)}
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>আমার পূর্ণাঙ্গ হিসাব বিবরণী দেখুন</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
+              <table className="min-w-max w-full text-xs text-left divide-y divide-slate-100">
+                <thead className="bg-slate-50 text-slate-500 uppercase tracking-wide font-extrabold text-[10px]">
+                  <tr>
+                    <th className="p-3">নাম</th>
+                    <th className="p-3 text-right">মোট জমা (ডিপোজিট)</th>
+                    <th className="p-3 text-center">শেয়ার %</th>
+                    <th className="p-3 text-right text-rose-500">শেয়ার ইনভেস্টমেন্ট (খরচ)</th>
+                    <th className="p-3 text-right text-blue-600">সক্রিয় ব্যালেন্স</th>
+                    <th className="p-3 text-right text-emerald-600 font-extrabold">শেয়ার লভ্যাংশ (আয়)</th>
+                    <th className="p-3 text-right font-black">মোট নেট মূল্য</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {users
+                    .filter((u) => {
+                      if (u.role !== "member") return false;
+                      // If member and cannot see all, they only see themselves
+                      if (currentUser.role === "member" && !currentUser.canSeeAllData) {
+                        return u.docId === currentUser.docId;
+                      }
+                      // For company, only members of that company
+                      if (currentUser.role === "company") {
+                        return u.companyId === currentUser.docId;
+                      }
+                      return true;
+                    })
+                    .map((u) => {
+                      const calc = memberCalculations[u.docId] || { 
+                        expense: 0, 
+                        income: 0, 
+                        shareText: "0.0%", 
+                        savingsBalance: 0, 
+                        investBalance: 0, 
+                        incomeBalance: 0 
+                      };
+                      const uAmt = calc.savingsBalance;
+                      
+                      const isSaving = u.accountType === "saving";
+                      const shareInvestment = isSaving ? 0 : calc.expense;
+                      const activeBalance = isSaving ? uAmt : uAmt - calc.expense;
+                      const shareProfit = isSaving ? 0 : calc.income;
+                      const netWorth = activeBalance + shareProfit;
+
+                      return (
+                        <tr
+                          key={u.docId}
+                          onClick={() => handleShowUserHistory(u)}
+                          className="hover:bg-slate-50/80 cursor-pointer transition font-medium"
+                        >
+                          <td className="p-3 font-bold text-blue-700">{u.name}</td>
+                          <td className="p-3 text-right font-bold text-slate-700">৳{formatNum(uAmt)}</td>
+                          <td className="p-3 text-center text-blue-600 font-bold">{calc.shareText}</td>
+                          <td className="p-3 text-right text-rose-500 font-bold">৳{formatNum(shareInvestment)}</td>
+                          <td className="p-3 text-right text-blue-600 font-bold">৳{formatNum(activeBalance)}</td>
+                          <td className="p-3 text-right text-emerald-600 font-bold">৳{formatNum(shareProfit)}</td>
+                          <td className={`p-3 text-right font-black ${netWorth >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                            ৳{formatNum(netWorth)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
 
         {/* PROJECTS VIEW */}
