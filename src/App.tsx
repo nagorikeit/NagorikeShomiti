@@ -657,11 +657,11 @@ export default function App() {
   if (authStateLoading) {
     return (
       <div className="min-h-screen bg-white flex flex-col justify-center items-center px-4 select-none animate-fadeIn">
-        <div className="relative mb-4">
+        <div className="relative mb-5">
           <img
             src="/app_icon.png"
             alt="আমার সমিতি"
-            className="w-24 h-24 rounded-3xl shadow-xl shadow-emerald-500/15 object-cover border border-emerald-50"
+            className="w-28 h-28 object-contain drop-shadow-xl"
           />
         </div>
         <h1 className="text-2xl font-black text-slate-800 tracking-tight">আমার সমিতি</h1>

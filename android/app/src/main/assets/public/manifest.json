@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "নাগরিক সমিতি",
-  "short_name": "নাগরিক সমিতি",
-  "description": "নাগরিক আইটি সেবা - নাগরিক সমিতির মেম্বার খাতা ও ডিজিটাল ড্যাশবোর্ড",
+  "name": "আমার সমিতি - AmarShomiti",
+  "short_name": "AmarShomiti",
+  "description": "আমার সমিতি (Amar Somiti) - সমিতির সব হিসাব, এক জায়গায়",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -166,5 +166,20 @@
       "text": "text",
       "url": "url"
     }
-  }
+  },
+  "file_handlers": [
+    {
+      "action": "/#import",
+      "name": "CSV ফাইল ইমপোর্ট",
+      "icons": [
+        {
+          "src": "/app_icon-96.png",
+          "sizes": "96x96"
+        }
+      ],
+      "accept": {
+        "text/csv": [".csv"]
+      }
+    }
+  ]
 }

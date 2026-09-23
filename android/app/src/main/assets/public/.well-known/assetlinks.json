@@ -3,10 +3,20 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
+      "package_name": "app.vercel.nagorikeshomiti.twa",
+      "sha256_cert_fingerprints": [
+        "15:9E:C1:9F:AC:EF:CC:E6:C9:D1:0C:F4:DC:47:4C:4B:7C:FA:38:57:07:D8:67:63:F7:C9:26:50:04:94:5A:8B"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
       "package_name": "com.nagorikeshomiti.app",
       "sha256_cert_fingerprints": [
         "14:6D:E9:7D:0F:52:AB:E0:85:41:86:11:24:28:29:3B:82:13:2F:88:CB:05:44:20:91:A4:44:2F:65:BC:90:A4",
-        "PLAY_STORE_APP_SIGNING_SHA256_FINGERPRINT_PLACEHOLDER"
+        "15:9E:C1:9F:AC:EF:CC:E6:C9:D1:0C:F4:DC:47:4C:4B:7C:FA:38:57:07:D8:67:63:F7:C9:26:50:04:94:5A:8B"
       ]
     }
   }
