@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { doc, getDoc, updateDoc, collection, getDocs, onSnapshot, addDoc, setDoc } from "firebase/firestore";
 import { updatePassword, updateProfile, updateEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { db, auth, secondaryAuth } from "../firebase";
@@ -37,6 +37,8 @@ import {
   CheckCircle,
   Clock,
   Sparkles,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 const writtenArrearsKeysGlobal = new Set<string>();
@@ -120,12 +122,74 @@ export default function ProfileView({
   const [billingSubmitting, setBillingSubmitting] = useState(false);
   const [requirePassChange, setRequirePassChange] = useState(true);
 
+  // Quick password change states
+  const [quickNewPassword, setQuickNewPassword] = useState("");
+  const [quickConfirmPassword, setQuickConfirmPassword] = useState("");
+  const [quickPassLoading, setQuickPassLoading] = useState(false);
+  const [showQuickPass, setShowQuickPass] = useState(false);
+
   const isOwnProfile = !targetId || targetId === currentUser.docId;
   const isAdminOrCompany = currentUser.role === "admin" || currentUser.role === "company";
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleQuickPasswordChange = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = quickNewPassword.trim();
+    if (trimmed.length < 6) {
+      showToast("পাসওয়ার্ডটি কমপক্ষে ৬ অক্ষরের হতে হবে।", "error");
+      return;
+    }
+    if (trimmed !== quickConfirmPassword.trim()) {
+      showToast("উভয় পাসওয়ার্ডের মিল নেই! আবার চেক করুন।", "error");
+      return;
+    }
+
+    setQuickPassLoading(true);
+    try {
+      if (auth.currentUser) {
+        try {
+          await updatePassword(auth.currentUser, trimmed);
+        } catch (authErr: any) {
+          console.warn("Auth password update warning:", authErr);
+        }
+      }
+      const activeId = targetId || currentUser.docId;
+      await updateDoc(doc(db, "users", activeId), {
+        password: trimmed,
+        requirePasswordChange: false,
+      });
+
+      const normMobile = (mobile || currentUser.mobile || "").replace(/[^0-9]/g, "");
+      if (normMobile) {
+        try {
+          await updateDoc(doc(db, "phone_to_email", normMobile), {
+            password: trimmed,
+            requirePasswordChange: false,
+          });
+        } catch (mappingErr) {
+          console.warn("Mapping skip:", mappingErr);
+        }
+      }
+
+      setPasswordState(trimmed);
+      setTargetUser((prev) => prev ? { ...prev, password: trimmed, requirePasswordChange: false } : null);
+      if (currentUser && (currentUser.docId === activeId || currentUser.userId === activeId)) {
+        currentUser.requirePasswordChange = false;
+        currentUser.password = trimmed;
+      }
+      setQuickNewPassword("");
+      setQuickConfirmPassword("");
+      showToast("✅ পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!");
+    } catch (err: any) {
+      console.error("Password change failed:", err);
+      showToast("পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে: " + (err.message || "আবার চেষ্টা করুন"), "error");
+    } finally {
+      setQuickPassLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -800,6 +864,8 @@ export default function ProfileView({
     } else if (targetRole === "company" && isOwnProfile) {
       editable = targetStatus === "pending";
     }
+  } else if (isOwnProfile) {
+    editable = true;
   }
 
   const isCompanyProfileComplete = () => {
@@ -830,18 +896,77 @@ export default function ProfileView({
         </div>
       )}
 
-      {isOwnProfile && currentUser?.requirePasswordChange && (
+      {isOwnProfile && (currentUser?.requirePasswordChange || targetUser?.requirePasswordChange) && (
         <div className="max-w-md mx-auto px-4 mt-4">
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-3xl flex items-start gap-3 shadow-sm">
-            <div className="p-2 bg-amber-100 rounded-2xl text-amber-600 shrink-0 mt-0.5 animate-pulse">
-              <AlertTriangle className="w-5 h-5" />
+          <div className="bg-amber-50 dark:bg-amber-950/50 border-2 border-amber-300 dark:border-amber-700/60 p-5 rounded-3xl shadow-md">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="p-2 bg-amber-200 dark:bg-amber-800/80 rounded-2xl text-amber-800 dark:text-amber-200 shrink-0 mt-0.5 animate-pulse">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-amber-950 dark:text-amber-200">⚠️ পাসওয়ার্ড পরিবর্তন করুন</h4>
+                <p className="text-xs text-amber-800 dark:text-amber-300/90 font-semibold mt-1 leading-relaxed">
+                  আপনার অ্যাকাউন্টে বর্তমানে ওয়ান-টাইম পাসওয়ার্ড (OTP) সেট করা আছে। নিরাপত্তার স্বার্থে অনুগ্রহ করে নিচে আপনার নতুন পাসওয়ার্ড লিখে সংরক্ষণ করুন।
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="text-xs font-extrabold text-amber-900">⚠️ পাসওয়ার্ড পরিবর্তন করুন!</h4>
-              <p className="text-[10px] text-amber-700 leading-normal mt-1 font-bold">
-                আপনার পাসওয়ার্ডটি বর্তমানে ওয়ান-টাইম পাসওয়ার্ড (OTP) হিসেবে সেট করা আছে। নিরাপত্তার স্বার্থে, অনুগ্রহ করে নিচের "লগইন পাসওয়ার্ড" ফিল্ডে আপনার পছন্দের একটি নিরাপদ নতুন পাসওয়ার্ড টাইপ করে প্রোফাইলটি আপডেট/সেভ করুন। নতুন পাসওয়ার্ড সেট না করা পর্যন্ত আপনি অন্য কোনো পেজে যেতে পারবেন না।
-              </p>
-            </div>
+
+            <form onSubmit={handleQuickPasswordChange} className="space-y-3 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800/60">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">
+                  নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showQuickPass ? "text" : "password"}
+                    required
+                    value={quickNewPassword}
+                    onChange={(e) => setQuickNewPassword(e.target.value)}
+                    placeholder="পছন্দের নতুন পাসওয়ার্ড লিখুন"
+                    className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 px-3.5 py-2.5 rounded-2xl text-xs font-bold text-slate-800 dark:text-white focus:border-indigo-600 outline-none pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickPass(!showQuickPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    {showQuickPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">
+                  নতুন পাসওয়ার্ড পুনরায় নিশ্চিত করুন
+                </label>
+                <input
+                  type={showQuickPass ? "text" : "password"}
+                  required
+                  value={quickConfirmPassword}
+                  onChange={(e) => setQuickConfirmPassword(e.target.value)}
+                  placeholder="পাসওয়ার্ডটি পুনরায় লিখুন"
+                  className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 px-3.5 py-2.5 rounded-2xl text-xs font-bold text-slate-800 dark:text-white focus:border-indigo-600 outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={quickPassLoading}
+                  className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 disabled:opacity-50 text-white text-xs font-black rounded-xl transition shadow-md shadow-emerald-600/20 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Key className="w-4 h-4" />
+                  {quickPassLoading ? "সংরক্ষণ করা হচ্ছে..." : "নতুন পাসওয়ার্ড সংরক্ষণ করুন"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate("dashboard")}
+                  className="py-2.5 px-3 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  ড্যাশবোর্ডে যান
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

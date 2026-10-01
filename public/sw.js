@@ -1,9 +1,10 @@
-// Progressive Web App Service Worker for নাগরিক সমিতি
-const CACHE_NAME = "nagarika-samity-v3";
+// Progressive Web App Service Worker for আমার সমিতি
+const CACHE_NAME = "amar-somiti-v5";
 const OFFLINE_URL = "/index.html";
 const PRECACHE_ASSETS = [
   OFFLINE_URL,
   "/manifest.json",
+  "/app_icon.png",
   "/app_icon-192.png",
   "/app_icon-512.png"
 ];
@@ -39,12 +40,12 @@ self.addEventListener("push", (event) => {
   if (event.data) {
     const data = event.data.json();
     const options = {
-      body: data.body || "নাগরিক সমিতি থেকে নতুন নোটিফিকেশন",
+      body: data.body || "আমার সমিতি থেকে নতুন নোটিফিকেশন",
       icon: "/app_icon-192.png",
       badge: "/app_icon-192.png",
       data: { url: data.url || "/" }
     };
-    event.waitUntil(self.registration.showNotification(data.title || "নাগরিক সমিতি", options));
+    event.waitUntil(self.registration.showNotification(data.title || "আমার সমিতি", options));
   }
 });
 
@@ -64,36 +65,49 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Network-first strategy to ensure real-time Firestore data and updates are never stale
+// High-performance caching strategy
 self.addEventListener("fetch", (event) => {
   try {
     const url = new URL(event.request.url);
 
-    // Only handle GET requests of the same origin (local app assets like HTML, CSS, JS)
-    // Completely bypass Firebase connections (which are cross-origin) and custom APIs
+    // Only handle GET requests of the same origin
     if (event.request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
       return;
     }
 
+    // Cache-first / Stale-While-Revalidate for immutable hashed assets
+    if (url.pathname.startsWith("/assets/") || url.pathname.endsWith(".png") || url.pathname.endsWith(".jpg") || url.pathname.endsWith(".svg")) {
+      event.respondWith(
+        caches.match(event.request).then((cached) => {
+          const fetchPromise = fetch(event.request).then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const resClone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+            }
+            return networkResponse;
+          }).catch(() => cached);
+          return cached || fetchPromise;
+        })
+      );
+      return;
+    }
+
+    // Network-first strategy for HTML pages and dynamic shell
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // If we get a valid response, return it
           if (response && response.status === 200) {
-            return response;
+            const resClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
           }
           return response;
         })
         .catch(() => {
-          // Offline fallback
-          return caches.match(OFFLINE_URL).then((cachedResponse) => {
+          return caches.match(event.request).then((cachedResponse) => {
             if (cachedResponse) {
               return cachedResponse;
             }
-            return new Response("Offline mode active. Please connect to the internet.", {
-              status: 503,
-              headers: { "Content-Type": "text/plain; charset=utf-8" }
-            });
+            return caches.match(OFFLINE_URL);
           });
         })
     );

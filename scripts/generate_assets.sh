@@ -1,12 +1,11 @@
 #!/bin/bash
 set -e
 
-SRC_LOGO="./src/assets/images/amar_somiti_logo_1790106703913.jpg"
+SRC_LOGO="./src/assets/images/amar_somiti_taka_logo_1790230966688.jpg"
 
 echo "=== 1. Tightly Cropping Logo Emblem (Eliminating Excess White Margins) ==="
-# The original 1024x1024 image had huge white padding.
-# Crop tightly around the 3D circular medal (810x810 at offset +120+135)
-convert "$SRC_LOGO" -crop 810x810+120+135 +repage /tmp/logo_tight.png
+# Crop tightly around the vibrant circular medal and square it
+convert "$SRC_LOGO" -fuzz 5% -trim +repage -gravity center -background white -extent 980x980 /tmp/logo_tight.png
 
 echo "=== 2. Generating Public PWA and Web Icons (Full-Bleed Emblem) ==="
 mkdir -p public

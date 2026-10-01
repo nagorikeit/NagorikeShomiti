@@ -139,18 +139,18 @@ export default function GlobalHeader({
           {/* Left: Brand logo & name */}
           <div 
             onClick={() => isActiveOrAdmin && onNavigate("dashboard")}
-            className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition animate-fadeIn"
+            className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition animate-fadeIn min-w-0 flex-1 mr-2"
           >
             <img
               src="/app_icon.png"
               alt="আমার সমিতি"
-              className="w-10 h-10 rounded-2xl object-cover shadow-md shadow-emerald-600/15 border border-emerald-100 dark:border-slate-800"
+              className="w-10 h-10 rounded-2xl object-cover shadow-md shadow-blue-600/20 border border-blue-100 dark:border-slate-800 shrink-0"
             />
-            <div>
-              <span className="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100 tracking-tight block">
+            <div className="min-w-0">
+              <span className="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100 tracking-tight block truncate">
                 {displayCompanyName || currentUser.companyName || (language === "bn" ? "আমার সমিতি" : "Amar Somiti")}
               </span>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold block -mt-0.5 uppercase tracking-wide">
+              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold block -mt-0.5 uppercase tracking-wide truncate">
                 {currentUser.name} ({currentUser.role === "admin" ? t.admin : currentUser.role === "company" ? t.company : t.member})
               </span>
             </div>
@@ -316,10 +316,7 @@ export default function GlobalHeader({
           )}
 
           {/* Right: User Menu & Notification Bell */}
-          <div className="flex items-center gap-2">
-            {/* Realtime Offline & Cloud Sync Status Badge */}
-            <OfflineSyncBadge />
-
+          <div className="flex items-center gap-2 shrink-0">
             {/* Elegant Header Notification Bell */}
             {isActiveOrAdmin && (
               <button
@@ -358,10 +355,15 @@ export default function GlobalHeader({
                     className="fixed inset-0 z-40 bg-black/5 dark:bg-black/20" 
                     onClick={() => setShowProfileMenu(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 py-2 z-50 text-slate-800 dark:text-slate-100 animate-fadeIn font-sans transition-colors duration-200 max-h-[min(480px,calc(100vh-100px))] overflow-y-auto">
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 py-2 z-50 text-slate-800 dark:text-slate-100 animate-fadeIn font-sans transition-colors duration-200 max-h-[min(480px,calc(100vh-100px))] overflow-y-auto">
                     <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 text-left">
                       <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{currentUser.name}</p>
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{currentUser.email}</p>
+                    </div>
+
+                    {/* Offline & Cloud Sync Function integrated inside menu */}
+                    <div className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/30">
+                      <OfflineSyncBadge inMenu={true} onOpen={() => setShowProfileMenu(false)} language={language} />
                     </div>
                     
                     <div className="py-1">

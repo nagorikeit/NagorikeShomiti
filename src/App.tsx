@@ -1,32 +1,45 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, where, onSnapshot, collectionGroup, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { User } from "./types";
 import { normalizePhoneNumber } from "./utils/firestore";
+import { AnimatePresence, motion } from "motion/react";
+import { App as CapApp } from "@capacitor/app";
+
+// Import critical components directly for fast initial load
 import AuthView from "./components/AuthView";
-import { CompleteProfileView } from "./components/CompleteProfileView";
 import DashboardView from "./components/DashboardView";
-import AdminDashboardView from "./components/AdminDashboardView";
-import MemberListView from "./components/MemberListView";
-import MemberAddView from "./components/MemberAddView";
-import ProfileView from "./components/ProfileView";
 import GlobalHeader from "./components/GlobalHeader";
 import GlobalSlider from "./components/GlobalSlider";
-import ArrearsView from "./components/ArrearsView";
-import NotificationsView from "./components/NotificationsView";
-import TransactionsView from "./components/TransactionsView";
-import SettingsView from "./components/SettingsView";
-import ActivityView from "./components/ActivityView";
-import SubscriptionRequestsView from "./components/SubscriptionRequestsView";
-import DepositWithdrawView from "./components/DepositWithdrawView";
-import AdManagementView from "./components/AdManagementView";
-import CashOutView from "./components/CashOutView";
-import { motion, AnimatePresence } from "motion/react";
-import { Download, X, Smartphone, Sparkles } from "lucide-react";
 import InstallGuideModal from "./components/InstallGuideModal";
 import NetworkAlertToast from "./components/NetworkAlertToast";
-import { App as CapApp } from "@capacitor/app";
+import PasswordChangeModal from "./components/PasswordChangeModal";
+
+// Lazy load non-critical components
+const AdminDashboardView = lazy(() => import("./components/AdminDashboardView"));
+const MemberListView = lazy(() => import("./components/MemberListView"));
+const MemberAddView = lazy(() => import("./components/MemberAddView"));
+const ProfileView = lazy(() => import("./components/ProfileView"));
+const ArrearsView = lazy(() => import("./components/ArrearsView"));
+const NotificationsView = lazy(() => import("./components/NotificationsView"));
+const TransactionsView = lazy(() => import("./components/TransactionsView"));
+const SettingsView = lazy(() => import("./components/SettingsView"));
+const ActivityView = lazy(() => import("./components/ActivityView"));
+const SubscriptionRequestsView = lazy(() => import("./components/SubscriptionRequestsView"));
+const DepositWithdrawView = lazy(() => import("./components/DepositWithdrawView"));
+const AdManagementView = lazy(() => import("./components/AdManagementView"));
+const CashOutView = lazy(() => import("./components/CashOutView"));
+const CompleteProfileView = lazy(() =>
+  import("./components/CompleteProfileView").then((m) => ({ default: m.CompleteProfileView }))
+);
+
+const ViewFallback = () => (
+  <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 animate-fadeIn">
+    <div className="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+    <p className="mt-3 text-xs font-bold text-slate-400">লোড হচ্ছে...</p>
+  </div>
+);
 
 type RouteView = "login" | "dashboard" | "member-list" | "member-add" | "profile" | "arrears" | "notifications" | "transactions" | "settings" | "activity" | "subscription-requests" | "deposit-withdraw" | "ad-management" | "cashout";
 
@@ -34,6 +47,7 @@ export default function App() {
   const [authStateLoading, setAuthStateLoading] = useState(true);
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [dismissedPassChange, setDismissedPassChange] = useState(false);
 
   // Language selection state (defaults to "bn")
   const [language, setLanguage] = useState<"bn" | "en">(() => {
@@ -167,10 +181,6 @@ export default function App() {
 
           if (!isActive && !isAdmin) {
             // Pending/deactive users can only view their own profile
-            setCurrentView("profile");
-            setNavigationParams(null);
-          } else if (u.requirePasswordChange) {
-            // Users requiring password change are locked to the profile view
             setCurrentView("profile");
             setNavigationParams(null);
           } else {
@@ -645,11 +655,6 @@ export default function App() {
         setCurrentView("profile");
         return;
       }
-      if (currentUser.requirePasswordChange && view !== "profile") {
-        setNavigationParams(null);
-        setCurrentView("profile");
-        return;
-      }
     }
     setNavigationParams(params);
     setCurrentView(view as RouteView);
@@ -662,13 +667,13 @@ export default function App() {
           <img
             src="/app_icon.png"
             alt="আমার সমিতি"
-            className="w-28 h-28 object-contain drop-shadow-xl"
+            className="w-24 h-24 object-contain drop-shadow-xl"
           />
         </div>
         <h1 className="text-2xl font-black text-slate-800 tracking-tight">আমার সমিতি</h1>
-        <p className="text-xs font-bold text-emerald-600 mt-1 mb-6">“সমিতির সব হিসাব, এক জায়গায়”</p>
+        <p className="text-xs font-bold text-blue-600 mt-1 mb-6">“সমিতির সব হিসাব, এক জায়গায়”</p>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
+          <div className="w-2 h-2 rounded-full bg-blue-600 animate-ping"></div>
           <p className="text-[11px] font-bold text-slate-400">লোড হচ্ছে...</p>
         </div>
       </div>
@@ -676,7 +681,11 @@ export default function App() {
   }
 
   if (firebaseUser && !currentUser) {
-    return <CompleteProfileView firebaseUser={firebaseUser} language={language} />;
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <CompleteProfileView firebaseUser={firebaseUser} language={language} />
+      </Suspense>
+    );
   }
 
   if (!firebaseUser) {
@@ -700,44 +709,21 @@ export default function App() {
         appName={appName}
       />
       <NetworkAlertToast />
+      {currentUser && currentUser.requirePasswordChange && !dismissedPassChange && (
+        <PasswordChangeModal
+          currentUser={currentUser}
+          onSuccess={(newPass) => {
+            setCurrentUser((prev) => (prev ? { ...prev, password: newPass, requirePasswordChange: false } : null));
+            setDismissedPassChange(true);
+          }}
+          onDismiss={() => setDismissedPassChange(true)}
+        />
+      )}
       <InstallGuideModal 
         isOpen={showInstallGuide} 
         onClose={() => setShowInstallGuide(false)} 
         appName={appName} 
       />
-      {showInstallBanner && (
-        <div className="bg-sky-50 dark:bg-sky-950/40 border-b border-sky-100 dark:border-sky-900/50 py-3 px-4 font-sans flex items-center justify-between gap-4 animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-2xl shrink-0">
-              <Smartphone className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                <span>{appName} অ্যাপ ইন্সটল করুন</span>
-              </h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                সহজে ও দ্রুত ব্যবহারের জন্য সরাসরি আপনার মোবাইলের হোম স্ক্রিনে যুক্ত করুন।
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleInstallApp}
-              className="py-1.5 px-3 bg-sky-600 hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600 text-white text-[10px] font-black rounded-xl transition cursor-pointer flex items-center gap-1 shadow-sm"
-            >
-              <Download className="w-3 h-3" />
-              <span>ইন্সটল করুন</span>
-            </button>
-            <button
-              onClick={() => setShowInstallBanner(false)}
-              className="p-2 hover:bg-sky-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-xl transition cursor-pointer"
-              title="বন্ধ করুন"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
       <GlobalSlider currentUser={currentUser} language={language} />
       <AnimatePresence mode="wait">
         <motion.div
@@ -747,103 +733,105 @@ export default function App() {
           exit={{ opacity: 0, y: -15 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
         >
-          {currentView === "dashboard" && (
-            currentUser.role === "admin" ? (
-              <AdminDashboardView currentUser={currentUser} onNavigate={handleNavigate} language={language} />
-            ) : (
-              <DashboardView currentUser={currentUser} onNavigate={handleNavigate} navigationParams={navigationParams} totalEntries={totalEntries} isNavVisible={isNavVisible} language={language} companyPlan={companyPlan} />
-            )
-          )}
+          <Suspense fallback={<ViewFallback />}>
+            {currentView === "dashboard" && (
+              currentUser.role === "admin" ? (
+                <AdminDashboardView currentUser={currentUser} onNavigate={handleNavigate} language={language} />
+              ) : (
+                <DashboardView currentUser={currentUser} onNavigate={handleNavigate} navigationParams={navigationParams} totalEntries={totalEntries} isNavVisible={isNavVisible} language={language} companyPlan={companyPlan} />
+              )
+            )}
 
-          {currentView === "member-list" && (
-            <MemberListView currentUser={currentUser} onNavigate={handleNavigate} />
-          )}
+            {currentView === "member-list" && (
+              <MemberListView currentUser={currentUser} onNavigate={handleNavigate} />
+            )}
 
-          {currentView === "member-add" && (
-            <MemberAddView currentUser={currentUser} onNavigate={handleNavigate} totalEntries={totalEntries} subscriptionLimits={subscriptionLimits} />
-          )}
+            {currentView === "member-add" && (
+              <MemberAddView currentUser={currentUser} onNavigate={handleNavigate} totalEntries={totalEntries} subscriptionLimits={subscriptionLimits} />
+            )}
 
-          {currentView === "profile" && (
-            <ProfileView
-              currentUser={currentUser}
-              targetId={navigationParams?.id}
-              onNavigate={handleNavigate}
-              totalEntries={totalEntries}
-              subscriptionLimits={subscriptionLimits}
-            />
-          )}
+            {currentView === "profile" && (
+              <ProfileView
+                currentUser={currentUser}
+                targetId={navigationParams?.id}
+                onNavigate={handleNavigate}
+                totalEntries={totalEntries}
+                subscriptionLimits={subscriptionLimits}
+              />
+            )}
 
-          {currentView === "arrears" && (
-            <ArrearsView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-            />
-          )}
+            {currentView === "arrears" && (
+              <ArrearsView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+              />
+            )}
 
-          {currentView === "notifications" && (
-            <NotificationsView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-            />
-          )}
+            {currentView === "notifications" && (
+              <NotificationsView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+              />
+            )}
 
-          {currentView === "transactions" && (
-            <TransactionsView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-            />
-          )}
+            {currentView === "transactions" && (
+              <TransactionsView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+              />
+            )}
 
-          {currentView === "deposit-withdraw" && (
-            <DepositWithdrawView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-              navigationParams={navigationParams}
-            />
-          )}
+            {currentView === "deposit-withdraw" && (
+              <DepositWithdrawView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+                navigationParams={navigationParams}
+              />
+            )}
 
-          {currentView === "cashout" && (
-            <CashOutView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-              navigationParams={navigationParams}
-            />
-          )}
+            {currentView === "cashout" && (
+              <CashOutView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+                navigationParams={navigationParams}
+              />
+            )}
 
-          {currentView === "subscription-requests" && (
-            <SubscriptionRequestsView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-              subscriptionLimits={subscriptionLimits}
-            />
-          )}
+            {currentView === "subscription-requests" && (
+              <SubscriptionRequestsView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+                subscriptionLimits={subscriptionLimits}
+              />
+            )}
 
-          {currentView === "settings" && (
-            <SettingsView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-              language={language}
-              setLanguage={setLanguage}
-              theme={theme}
-              setTheme={setTheme}
-              subscriptionLimits={subscriptionLimits}
-            />
-          )}
+            {currentView === "settings" && (
+              <SettingsView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+                language={language}
+                setLanguage={setLanguage}
+                theme={theme}
+                setTheme={setTheme}
+                subscriptionLimits={subscriptionLimits}
+              />
+            )}
 
-          {currentView === "activity" && (
-            <ActivityView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-            />
-          )}
+            {currentView === "activity" && (
+              <ActivityView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+              />
+            )}
 
-          {currentView === "ad-management" && currentUser && (
-            <AdManagementView
-              currentUser={currentUser}
-              onNavigate={handleNavigate}
-              language={language}
-            />
-          )}
+            {currentView === "ad-management" && currentUser && (
+              <AdManagementView
+                currentUser={currentUser}
+                onNavigate={handleNavigate}
+                language={language}
+              />
+            )}
+          </Suspense>
         </motion.div>
       </AnimatePresence>
 
