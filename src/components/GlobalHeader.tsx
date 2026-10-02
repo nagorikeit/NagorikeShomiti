@@ -146,11 +146,11 @@ export default function GlobalHeader({
               alt="আমার সমিতি"
               className="w-10 h-10 rounded-2xl object-cover shadow-md shadow-blue-600/20 border border-blue-100 dark:border-slate-800 shrink-0"
             />
-            <div className="min-w-0">
-              <span className="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100 tracking-tight block truncate">
+            <div className="min-w-max">
+              <span className="font-black text-sm sm:text-base text-slate-800 dark:text-slate-100 tracking-tight block">
                 {displayCompanyName || currentUser.companyName || (language === "bn" ? "আমার সমিতি" : "Amar Somiti")}
               </span>
-              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold block -mt-0.5 uppercase tracking-wide truncate">
+              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold block -mt-0.5 uppercase tracking-wide">
                 {currentUser.name} ({currentUser.role === "admin" ? t.admin : currentUser.role === "company" ? t.company : t.member})
               </span>
             </div>
