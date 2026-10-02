@@ -1871,6 +1871,7 @@ export default function DashboardView({
       title: "লেনদেন ডিলিট নিশ্চিতকরণ",
       message: "লেনদেনটি স্থায়ীভাবে ডিলিট করতে চান?",
       onConfirm: async () => {
+        setDeletingHist(h.docId);
         try {
           const docRef = doc(db, "users", selectedUser.docId, "history", h.docId);
           const amt = Number(h.amount || 0);
@@ -1886,6 +1887,7 @@ export default function DashboardView({
           console.error(e);
           alert("ডিলিট করা যায়নি");
         } finally {
+          setDeletingHist(null);
           setConfirmState(null);
         }
       }
