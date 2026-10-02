@@ -224,8 +224,10 @@ export default function DashboardView({
   const [newInstMonths, setNewInstMonths] = useState<number>(0);
   const [newInstStartDate, setNewInstStartDate] = useState(new Date().toISOString().split("T")[0]);
 
-  // Loading indicator for saves
-  const [saving, setSaving] = useState(false);
+  const [deletingTrx, setDeletingTrx] = useState<string | null>(null);
+  const [deletingProj, setDeletingProj] = useState<string | null>(null);
+  const [deletingInst, setDeletingInst] = useState<string | null>(null);
+  const [deletingHist, setDeletingHist] = useState<string | null>(null);
 
   // Trigger opening Add Modal when navigated with openAdd parameter
   useEffect(() => {
@@ -1890,12 +1892,14 @@ export default function DashboardView({
     });
   };
 
-  const handleDeleteTrx = (t: Transaction) => {
+  const handleDeleteTrx = (e: React.MouseEvent, t: Transaction) => {
+    e.stopPropagation();
     setConfirmState({
       isOpen: true,
       title: "লেনদেন ডিলিট নিশ্চিতকরণ",
       message: "লেনদেনটি স্থায়ীভাবে ডিলিট করতে চান?",
       onConfirm: async () => {
+        setDeletingTrx(t.id);
         try {
           await deleteDoc(doc(db, "accounts", t.id));
           if (selectedProject) handleShowProjectHistory(selectedProject);
@@ -1903,6 +1907,7 @@ export default function DashboardView({
           console.error(e);
           alert("ডিলিট করা যায়নি");
         } finally {
+          setDeletingTrx(null);
           setConfirmState(null);
         }
       }
