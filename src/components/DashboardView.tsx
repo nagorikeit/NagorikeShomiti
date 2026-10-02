@@ -1407,7 +1407,6 @@ export default function DashboardView({
         setSelectedUserSavingsArrears(0);
         setSelectedUserInstallmentArrears(0);
         setEntryFile(null);
-        setSaving(false);
         setShowAddModal(false);
       } else if (addMode === "transaction") {
         if (!newTrxProject || !newTrxAmount || newTrxAmount <= 0 || !newTrxDate) {
@@ -1441,7 +1440,6 @@ export default function DashboardView({
         setNewTrxAmount(0);
         setNewTrxDesc("");
         setEntryFile(null);
-        setSaving(false);
         setShowAddModal(false);
       } else if (addMode === "project") {
         if (!newProjName) {
@@ -1484,7 +1482,6 @@ export default function DashboardView({
         setNewProjBudget(0);
         setNewProjDuration("");
         setEntryFile(null);
-        setSaving(false);
         setShowAddModal(false);
       } else if (addMode === "installment") {
         if (!newInstCustomerName || !newInstProductName || !newInstTotalAmount || !newInstMonths || !newInstStartDate) {
@@ -1544,7 +1541,6 @@ export default function DashboardView({
         setNewInstDown(0);
         setNewInstMonths(0);
         setEntryFile(null);
-        setSaving(false);
         setShowAddModal(false);
       } else if (addMode === "convert") {
         if (!newConvertTarget || !newConvertProjectId || !newConvertAmount || newConvertAmount <= 0 || !newConvertDate) {
@@ -1883,7 +1879,7 @@ export default function DashboardView({
           });
 
           await deleteDoc(docRef);
-          await handleShowUserHistory(selectedUser);
+          handleShowUserHistory(selectedUser);
         } catch (e) {
           console.error(e);
           alert("ডিলিট করা যায়নি");
@@ -1902,7 +1898,7 @@ export default function DashboardView({
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, "accounts", t.id));
-          if (selectedProject) await handleShowProjectHistory(selectedProject);
+          if (selectedProject) handleShowProjectHistory(selectedProject);
         } catch (e) {
           console.error(e);
           alert("ডিলিট করা যায়নি");
@@ -2189,8 +2185,8 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* Ledger-like visual list of cash flows (Centrally Aligned Grid) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 justify-items-center">
+          {/* Ledger-like visual list of cash flows (Very Compact Grid) */}
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
             {/* 1. SAVINGS CASH */}
             <div className="bg-emerald-50/20 border border-emerald-100/50 p-2 rounded-xl flex items-center gap-1.5 hover:shadow-sm transition">
               <div className="p-1 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
@@ -2360,7 +2356,7 @@ export default function DashboardView({
       </div>
 
       {/* Tabs */}
-      <div className="mx-4 mt-5 p-1.5 bg-slate-100/80 dark:bg-slate-800/40 rounded-2xl flex flex-wrap gap-1.5 border border-slate-200/60 dark:border-slate-700/50 shadow-sm justify-center">
+      <div className="mx-4 mt-5 p-1.5 bg-slate-100/80 dark:bg-slate-800/40 rounded-2xl flex flex-wrap gap-1.5 border border-slate-200/60 dark:border-slate-700/50 shadow-sm">
         <button
           onClick={() => setActiveTab("invest")}
           className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex-1 min-w-[125px] md:flex-initial md:min-w-[140px] ${
