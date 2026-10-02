@@ -1407,6 +1407,7 @@ export default function DashboardView({
         setSelectedUserSavingsArrears(0);
         setSelectedUserInstallmentArrears(0);
         setEntryFile(null);
+        setSaving(false);
         setShowAddModal(false);
       } else if (addMode === "transaction") {
         if (!newTrxProject || !newTrxAmount || newTrxAmount <= 0 || !newTrxDate) {
@@ -1440,6 +1441,7 @@ export default function DashboardView({
         setNewTrxAmount(0);
         setNewTrxDesc("");
         setEntryFile(null);
+        setSaving(false);
         setShowAddModal(false);
       } else if (addMode === "project") {
         if (!newProjName) {
@@ -1482,6 +1484,7 @@ export default function DashboardView({
         setNewProjBudget(0);
         setNewProjDuration("");
         setEntryFile(null);
+        setSaving(false);
         setShowAddModal(false);
       } else if (addMode === "installment") {
         if (!newInstCustomerName || !newInstProductName || !newInstTotalAmount || !newInstMonths || !newInstStartDate) {
@@ -1541,6 +1544,7 @@ export default function DashboardView({
         setNewInstDown(0);
         setNewInstMonths(0);
         setEntryFile(null);
+        setSaving(false);
         setShowAddModal(false);
       } else if (addMode === "convert") {
         if (!newConvertTarget || !newConvertProjectId || !newConvertAmount || newConvertAmount <= 0 || !newConvertDate) {
@@ -1879,7 +1883,7 @@ export default function DashboardView({
           });
 
           await deleteDoc(docRef);
-          handleShowUserHistory(selectedUser);
+          await handleShowUserHistory(selectedUser);
         } catch (e) {
           console.error(e);
           alert("ডিলিট করা যায়নি");
@@ -1898,7 +1902,7 @@ export default function DashboardView({
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, "accounts", t.id));
-          if (selectedProject) handleShowProjectHistory(selectedProject);
+          if (selectedProject) await handleShowProjectHistory(selectedProject);
         } catch (e) {
           console.error(e);
           alert("ডিলিট করা যায়নি");
