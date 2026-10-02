@@ -1228,13 +1228,12 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
   };
 
   const handleDeleteCompanyAccount = async (accId: string) => {
-    if (!window.confirm("আপনি কি নিশ্চিতভাবে এই পেমেন্ট অ্যাকাউন্টটি মুছে ফেলতে চান?")) return;
     try {
       await deleteDoc(doc(db, "company_payment_accounts", accId));
       setToastMsg({ text: "✅ অ্যাকাউন্টটি সফলভাবে মুছে ফেলা হয়েছে।", type: "success" });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setToastMsg({ text: "মুছে ফেলা সম্ভব হয়নি।", type: "error" });
+      setToastMsg({ text: "মুছে ফেলা সম্ভব হয়নি: " + (err?.message || ""), type: "error" });
     }
   };
 

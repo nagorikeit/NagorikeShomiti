@@ -135,11 +135,11 @@ export default function GlobalHeader({
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-150 dark:border-slate-850 shadow-sm font-sans select-none transition-colors">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
-        <div className="grid grid-cols-[auto,1fr,auto] items-center h-20 gap-4">
+        <div className="flex items-center justify-between h-20 gap-3 sm:gap-4">
           {/* Left: Brand logo & name */}
           <div 
             onClick={() => isActiveOrAdmin && onNavigate("dashboard")}
-            className="flex items-center gap-3 cursor-pointer active:scale-95 transition animate-fadeIn"
+            className="flex items-center gap-3 cursor-pointer active:scale-95 transition animate-fadeIn shrink-0"
           >
             <img
               src="/app_icon.png"
@@ -158,7 +158,7 @@ export default function GlobalHeader({
 
           {/* Center: Navigation Links for Desktop & Tablet */}
           {isActiveOrAdmin && (
-            <nav className="hidden md:flex space-x-1">
+            <nav className="hidden md:flex items-center space-x-1 flex-1 justify-center max-w-fit mx-auto">
               {currentUser.role === "admin" ? (
                 <>
                   <button

@@ -1256,13 +1256,15 @@ export default function DashboardView({
     try {
       if (addMode === "invest") {
         if (!newInvestTarget || !newInvestAmount || newInvestAmount <= 0 || !newInvestDate) {
-          alert("সঠিক তথ্য পূরণ করুন");
+          setToastMsg({ text: "সঠিক তথ্য ও পরিমাণ পূরণ করুন", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
 
         const user = users.find((u) => u.docId === newInvestTarget);
         if (!user) {
-          alert("ব্যবহারকারী খুঁজে পাওয়া যায়নি");
+          setToastMsg({ text: "ব্যবহারকারী খুঁজে পাওয়া যায়নি", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
 
@@ -1412,9 +1414,7 @@ export default function DashboardView({
           InvestType: newInvestMode,
         });
 
-        alert(`ইনভেস্ট সফলভাবে সম্পন্ন হয়েছে।\nসমন্বয়কৃত সেভিংস বকেয়াঃ ৳${totalSavingsArrearsPaid}\nসমন্বয়কৃত কিস্তি বকেয়াঃ ৳${totalInstallmentArrearsPaid}\nনতুন সেভিংস যুক্ত হয়েছেঃ ৳${remaining}`);
-
-        // Reset
+        // Reset and close modal
         setNewInvestTarget("");
         setNewInvestAmount(0);
         setNewInvestMemo("");
@@ -1423,13 +1423,24 @@ export default function DashboardView({
         setSelectedUserInstallmentArrears(0);
         setEntryFile(null);
         setShowAddModal(false);
+
+        const summaryText = (totalSavingsArrearsPaid > 0 || totalInstallmentArrearsPaid > 0)
+          ? `ইনভেস্ট সফল! বকেয়া সমন্বয়ঃ ৳${formatNum(totalSavingsArrearsPaid + totalInstallmentArrearsPaid)}, সঞ্চয়ঃ ৳${formatNum(remaining)}`
+          : `ইনভেস্ট সফলভাবে সম্পন্ন হয়েছে (৳${formatNum(newInvestAmount)})`;
+        setToastMsg({ text: summaryText, type: "success" });
+        setTimeout(() => setToastMsg(null), 3500);
       } else if (addMode === "transaction") {
         if (!newTrxProject || !newTrxAmount || newTrxAmount <= 0 || !newTrxDate) {
-          alert("সঠিক তথ্য পূরণ করুন");
+          setToastMsg({ text: "সঠিক তথ্য ও পরিমাণ পূরণ করুন", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
         const proj = projects.find((p) => p.id === newTrxProject);
-        if (!proj) return;
+        if (!proj) {
+          setToastMsg({ text: "প্রজেক্ট খুঁজে পাওয়া যায়নি", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
+          return;
+        }
 
         const payload: any = {
           projectId: newTrxProject,
@@ -1451,14 +1462,17 @@ export default function DashboardView({
 
         await addDoc(collection(db, "accounts"), payload);
 
-        // Reset
+        // Reset and close modal
         setNewTrxAmount(0);
         setNewTrxDesc("");
         setEntryFile(null);
         setShowAddModal(false);
+        setToastMsg({ text: "লেনদেন সফলভাবে যোগ করা হয়েছে", type: "success" });
+        setTimeout(() => setToastMsg(null), 3000);
       } else if (addMode === "project") {
         if (!newProjName) {
-          alert("প্রজেক্টের নাম লিখুন");
+          setToastMsg({ text: "প্রজেক্টের নাম লিখুন", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
 
@@ -1490,7 +1504,7 @@ export default function DashboardView({
 
         await addDoc(collection(db, "projects"), payload);
 
-        // Reset
+        // Reset and close modal
         setNewProjName("");
         setNewProjDesc("");
         setNewProjLocation("");
@@ -1498,9 +1512,12 @@ export default function DashboardView({
         setNewProjDuration("");
         setEntryFile(null);
         setShowAddModal(false);
+        setToastMsg({ text: "প্রজেক্ট সফলভাবে তৈরি করা হয়েছে", type: "success" });
+        setTimeout(() => setToastMsg(null), 3000);
       } else if (addMode === "installment") {
         if (!newInstCustomerName || !newInstProductName || !newInstTotalAmount || !newInstMonths || !newInstStartDate) {
-          alert("আবশ্যক ফিল্ডগুলো পূরণ করুন");
+          setToastMsg({ text: "আবশ্যক ফিল্ডগুলো পূরণ করুন", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
 
@@ -1549,7 +1566,7 @@ export default function DashboardView({
 
         await addDoc(collection(db, "installments"), payload);
 
-        // Reset
+        // Reset and close modal
         setNewInstCustomer("");
         setNewInstProduct("");
         setNewInstTotal(0);
@@ -1557,15 +1574,19 @@ export default function DashboardView({
         setNewInstMonths(0);
         setEntryFile(null);
         setShowAddModal(false);
+        setToastMsg({ text: "কিস্তি চুক্তি সফলভাবে তৈরি করা হয়েছে", type: "success" });
+        setTimeout(() => setToastMsg(null), 3000);
       } else if (addMode === "convert") {
         if (!newConvertTarget || !newConvertProjectId || !newConvertAmount || newConvertAmount <= 0 || !newConvertDate) {
-          alert("সঠিক তথ্য পূরণ করুন");
+          setToastMsg({ text: "সঠিক তথ্য ও পরিমাণ পূরণ করুন", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
 
         const user = users.find((u) => u.docId === newConvertTarget);
         if (!user) {
-          alert("ব্যবহারকারী খুঁজে পাওয়া যায়নি");
+          setToastMsg({ text: "ব্যবহারকারী খুঁজে পাওয়া যায়নি", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
 
@@ -1573,13 +1594,15 @@ export default function DashboardView({
         const availableSavings = user.savingsBalance !== undefined ? user.savingsBalance : Number(user.amount || 0);
 
         if (newConvertAmount > availableSavings) {
-          alert(`পর্যাপ্ত সাধারণ সঞ্চয় নেই। উপলব্ধ সঞ্চয়: ৳${availableSavings}`);
+          setToastMsg({ text: `পর্যাপ্ত সাধারণ সঞ্চয় নেই। উপলব্ধ সঞ্চয়: ৳${formatNum(availableSavings)}`, type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
 
         const targetProj = projects.find((p) => p.id === newConvertProjectId);
         if (!targetProj) {
-          alert("প্রজেক্ট খুঁজে পাওয়া যায়নি");
+          setToastMsg({ text: "প্রজেক্ট খুঁজে পাওয়া যায়নি", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
           return;
         }
 
@@ -1624,8 +1647,6 @@ export default function DashboardView({
         await addDoc(historyCol, deductPayload);
         await addDoc(historyCol, addPayload);
 
-        alert(`✅ সাধারণ সঞ্চয় থেকে সফলভাবে ৳${newConvertAmount} ${targetProj.name} প্রজেক্টে ইনভেস্টে রূপান্তর করা হয়েছে!`);
-
         // Reset convert form
         setNewConvertTarget("");
         setNewConvertProjectId("");
@@ -1633,10 +1654,13 @@ export default function DashboardView({
         setNewConvertMemo("");
         setEntryFile(null);
         setShowAddModal(false);
+        setToastMsg({ text: `সাধারণ সঞ্চয় থেকে সফলভাবে ৳${formatNum(newConvertAmount)} ${targetProj.name} প্রজেক্টে রূপান্তর করা হয়েছে!`, type: "success" });
+        setTimeout(() => setToastMsg(null), 3500);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("সংরক্ষণ করা যায়নি");
+      setToastMsg({ text: "সংরক্ষণ করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
+      setTimeout(() => setToastMsg(null), 4000);
     } finally {
       setSaving(false);
     }
@@ -1669,12 +1693,15 @@ export default function DashboardView({
         });
 
         setEditingInvest(null);
+        setToastMsg({ text: "ইনভেস্ট সফলভাবে আপডেট করা হয়েছে", type: "success" });
+        setTimeout(() => setToastMsg(null), 3000);
         // Reload history list in view
         if (selectedUser) handleShowUserHistory(selectedUser);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("ইনভেস্ট আপডেট করা যায়নি");
+      setToastMsg({ text: "ইনভেস্ট আপডেট করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
+      setTimeout(() => setToastMsg(null), 3500);
     } finally {
       setSaving(false);
     }
@@ -1692,11 +1719,14 @@ export default function DashboardView({
         desc: editingTrx.desc || "",
       });
       setEditingTrx(null);
+      setToastMsg({ text: "লেনদেন সফলভাবে আপডেট করা হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
       // Reload history list in view
       if (selectedProject) handleShowProjectHistory(selectedProject);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("লেনদেন আপডেট করা যায়নি");
+      setToastMsg({ text: "লেনদেন আপডেট করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
+      setTimeout(() => setToastMsg(null), 3500);
     } finally {
       setSaving(false);
     }
@@ -1719,11 +1749,14 @@ export default function DashboardView({
         desc: editingProject.desc || "",
       });
       setEditingProject(null);
+      setToastMsg({ text: "প্রজেক্ট সফলভাবে আপডেট করা হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
       // Reload history view context
       if (selectedProject) handleShowProjectHistory(editingProject);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("প্রজেক্ট আপডেট করা যায়নি");
+      setToastMsg({ text: "প্রজেক্ট আপডেট করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
+      setTimeout(() => setToastMsg(null), 3500);
     } finally {
       setSaving(false);
     }
@@ -1748,11 +1781,13 @@ export default function DashboardView({
         });
       }
 
-      alert("শেয়ার পার্সেন্টেজ সফলভাবে আপডেট করা হয়েছে");
+      setToastMsg({ text: "শেয়ার পার্সেন্টেজ সফলভাবে আপডেট করা হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
       setEditingUserShare(null);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("শেয়ার পার্সেন্টেজ আপডেট করা যায়নি");
+      setToastMsg({ text: "শেয়ার পার্সেন্টেজ আপডেট করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
+      setTimeout(() => setToastMsg(null), 3500);
     } finally {
       setSaving(false);
     }
@@ -1798,9 +1833,12 @@ export default function DashboardView({
 
       setEditingInstallment(null);
       setSelectedProjectInstallment(null);
-    } catch (e) {
+      setToastMsg({ text: "কিস্তি তথ্য সফলভাবে আপডেট করা হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (e: any) {
       console.error(e);
-      alert("কিস্তি তথ্য আপডেট করা যায়নি");
+      setToastMsg({ text: "কিস্তি তথ্য আপডেট করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
+      setTimeout(() => setToastMsg(null), 3500);
     } finally {
       setSaving(false);
     }
@@ -1865,12 +1903,14 @@ export default function DashboardView({
         status: paymentPreview.allFullyPaid ? "closed" : "open",
       });
 
-      alert("পেমেন্ট সফলভাবে সম্পন্ন হয়েছে");
+      setToastMsg({ text: "পেমেন্ট সফলভাবে সম্পন্ন হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
       setPaymentPreview(null);
       setCustomPayAmount(0);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("পেমেন্ট সম্পূর্ণ করা যায়নি");
+      setToastMsg({ text: "পেমেন্ট সম্পূর্ণ করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
+      setTimeout(() => setToastMsg(null), 3500);
     } finally {
       setSaving(false);
     }
@@ -1907,25 +1947,22 @@ export default function DashboardView({
 
           const amt = Number(h.amount || 0);
           if (amt !== 0) {
-            try {
-              await updateDoc(doc(db, "users", targetUserId), {
-                amount: increment(-amt),
-              });
-            } catch (uErr) {
+            updateDoc(doc(db, "users", targetUserId), {
+              amount: increment(-amt),
+            }).catch((uErr) => {
               console.warn("User balance update note:", uErr);
-            }
+            });
           }
 
-          setConfirmState(null);
-          setDeletingHist(null);
           setToastMsg({ text: "এন্ট্রি সফলভাবে ডিলিট করা হয়েছে", type: "success" });
           setTimeout(() => setToastMsg(null), 3000);
         } catch (e: any) {
           console.error("Delete history error:", e);
-          setConfirmState(null);
-          setDeletingHist(null);
           setToastMsg({ text: "ডিলিট করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
           setTimeout(() => setToastMsg(null), 4000);
+        } finally {
+          setConfirmState(null);
+          setDeletingHist(null);
         }
       }
     });
@@ -1943,16 +1980,15 @@ export default function DashboardView({
           await deleteDoc(doc(db, "accounts", t.id));
           setTransactions((prev) => prev.filter((item) => item.id !== t.id));
           setProjectTrxs((prev) => prev.filter((item) => item.id !== t.id));
-          setConfirmState(null);
-          setDeletingTrx(null);
           setToastMsg({ text: "লেনদেন সফলভাবে ডিলিট করা হয়েছে", type: "success" });
           setTimeout(() => setToastMsg(null), 3000);
         } catch (e: any) {
           console.error("Delete trx error:", e);
-          setConfirmState(null);
-          setDeletingTrx(null);
           setToastMsg({ text: "লেনদেন ডিলিট করা যায়নি", type: "error" });
           setTimeout(() => setToastMsg(null), 3000);
+        } finally {
+          setConfirmState(null);
+          setDeletingTrx(null);
         }
       }
     });
@@ -1969,24 +2005,24 @@ export default function DashboardView({
           // Delete project document
           await deleteDoc(doc(db, "projects", p.id));
 
-          // Batch delete associated transaction files
-          const trxsSnap = await getDocs(query(collection(db, "accounts"), where("projectId", "==", p.id)));
-          for (const d of trxsSnap.docs) {
-            await deleteDoc(d.ref);
-          }
+          // Batch delete associated transaction files asynchronously
+          getDocs(query(collection(db, "accounts"), where("projectId", "==", p.id)))
+            .then((trxsSnap) => {
+              trxsSnap.docs.forEach((d) => deleteDoc(d.ref).catch(() => {}));
+            })
+            .catch((err) => console.warn("Error deleting project accounts:", err));
 
           setSelectedProject(null);
           setShowHistoryModal(false);
-          setConfirmState(null);
-          setDeletingProj(null);
           setToastMsg({ text: "প্রজেক্ট সফলভাবে ডিলিট করা হয়েছে", type: "success" });
           setTimeout(() => setToastMsg(null), 3000);
         } catch (e) {
           console.error(e);
-          setConfirmState(null);
-          setDeletingProj(null);
           setToastMsg({ text: "প্রজেক্ট ডিলিট করা যায়নি", type: "error" });
           setTimeout(() => setToastMsg(null), 3000);
+        } finally {
+          setConfirmState(null);
+          setDeletingProj(null);
         }
       }
     });
@@ -2003,16 +2039,15 @@ export default function DashboardView({
           await deleteDoc(doc(db, "installments", inst.id));
           setSelectedProjectInstallment(null);
           setEditingInstallment(null);
-          setConfirmState(null);
-          setDeletingInst(null);
           setToastMsg({ text: "কিস্তি চুক্তি সফলভাবে ডিলিট করা হয়েছে", type: "success" });
           setTimeout(() => setToastMsg(null), 3000);
         } catch (e) {
           console.error(e);
-          setConfirmState(null);
-          setDeletingInst(null);
           setToastMsg({ text: "কিস্তি ডিলিট করা যায়নি", type: "error" });
           setTimeout(() => setToastMsg(null), 3000);
+        } finally {
+          setConfirmState(null);
+          setDeletingInst(null);
         }
       }
     });
@@ -2026,7 +2061,8 @@ export default function DashboardView({
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("ফাইলের সাইজ ৫ মেগাবাইটের বেশি হওয়া যাবে না।");
+      setToastMsg({ text: "ফাইলের সাইজ ৫ মেগাবাইটের বেশি হওয়া যাবে না।", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
       e.target.value = "";
       setNewDocFile(null);
       return;
@@ -2041,7 +2077,8 @@ export default function DashboardView({
     };
     reader.onerror = (err) => {
       console.error("FileReader error:", err);
-      alert("ফাইল পড়তে সমস্যা হয়েছে।");
+      setToastMsg({ text: "ফাইল পড়তে সমস্যা হয়েছে।", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
     };
     reader.readAsDataURL(file);
   };
@@ -2053,7 +2090,8 @@ export default function DashboardView({
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("ফাইলের সাইজ ৫ মেগাবাইটের বেশি হওয়া যাবে না।");
+      setToastMsg({ text: "ফাইলের সাইজ ৫ মেগাবাইটের বেশি হওয়া যাবে না।", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
       e.target.value = "";
       setEntryFile(null);
       return;
@@ -2068,7 +2106,8 @@ export default function DashboardView({
     };
     reader.onerror = (err) => {
       console.error("FileReader error:", err);
-      alert("ফাইল পড়তে সমস্যা হয়েছে।");
+      setToastMsg({ text: "ফাইল পড়তে সমস্যা হয়েছে।", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
     };
     reader.readAsDataURL(file);
   };
@@ -2076,7 +2115,8 @@ export default function DashboardView({
   const handleAddDocument = async () => {
     if (!currentProject) return;
     if (!newDocName.trim()) {
-      alert("ডকুমেন্টের নাম বা শিরোনাম লিখুন");
+      setToastMsg({ text: "ডকুমেন্টের নাম বা শিরোনাম লিখুন", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
       return;
     }
 
@@ -2106,10 +2146,12 @@ export default function DashboardView({
       const fileInput = document.getElementById("doc-file-input") as HTMLInputElement;
       if (fileInput) fileInput.value = "";
 
-      alert("ডকুমেন্ট সফলভাবে আপলোড করা হয়েছে!");
-    } catch (err) {
+      setToastMsg({ text: "ডকুমেন্ট সফলভাবে আপলোড করা হয়েছে!", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (err: any) {
       console.error("Error uploading document:", err);
-      alert("ডকুমেন্ট আপলোড করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+      setToastMsg({ text: "ডকুমেন্ট আপলোড করতে সমস্যা হয়েছে: " + (err?.message || "সার্ভার এরর"), type: "error" });
+      setTimeout(() => setToastMsg(null), 3500);
     } finally {
       setDocUploadLoading(false);
     }
@@ -2129,9 +2171,13 @@ export default function DashboardView({
           await updateDoc(doc(db, "projects", currentProject.id), {
             documents: updatedDocs,
           });
-        } catch (err) {
+
+          setToastMsg({ text: "ডকুমেন্ট সফলভাবে মুছে ফেলা হয়েছে", type: "success" });
+          setTimeout(() => setToastMsg(null), 3000);
+        } catch (err: any) {
           console.error("Error deleting document:", err);
-          alert("ডকুমেন্ট ডিলিট করতে সমস্যা হয়েছে।");
+          setToastMsg({ text: "ডকুমেন্ট ডিলিট করতে সমস্যা হয়েছে: " + (err?.message || "সার্ভার এরর"), type: "error" });
+          setTimeout(() => setToastMsg(null), 3500);
         } finally {
           setConfirmState(null);
         }
@@ -5166,7 +5212,20 @@ export default function DashboardView({
             <div className="flex gap-2.5 pt-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={confirmState.onConfirm}
+                onClick={async () => {
+                  if (!confirmState?.onConfirm) return;
+                  try {
+                    await confirmState.onConfirm();
+                  } catch (err) {
+                    console.error("Confirm action error:", err);
+                  } finally {
+                    setConfirmState(null);
+                    setDeletingHist(null);
+                    setDeletingTrx(null);
+                    setDeletingProj(null);
+                    setDeletingInst(null);
+                  }
+                }}
                 disabled={Boolean(deletingHist || deletingTrx || deletingProj || deletingInst)}
                 className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
               >
@@ -5181,7 +5240,13 @@ export default function DashboardView({
               </button>
               <button
                 type="button"
-                onClick={() => setConfirmState(null)}
+                onClick={() => {
+                  setConfirmState(null);
+                  setDeletingHist(null);
+                  setDeletingTrx(null);
+                  setDeletingProj(null);
+                  setDeletingInst(null);
+                }}
                 disabled={Boolean(deletingHist || deletingTrx || deletingProj || deletingInst)}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
               >

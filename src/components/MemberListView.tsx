@@ -11,7 +11,7 @@ import {
   formatBDT,
   normalizePhoneNumber,
 } from "../utils/firestore";
-import { Search, Plus, ArrowLeft, Trash2, ToggleRight, User as UserIcon, Key, Mail, MessageSquare, Copy, Check, ShieldAlert } from "lucide-react";
+import { Search, Plus, ArrowLeft, Trash2, ToggleRight, User as UserIcon, Key, Mail, MessageSquare, Copy, Check, ShieldAlert, CheckCircle, AlertCircle } from "lucide-react";
 
 interface MemberListViewProps {
   currentUser: User;
@@ -32,6 +32,7 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
   const [statusTarget, setStatusTarget] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   // OTP management states
   const [otpTarget, setOtpTarget] = useState<User | null>(null);
@@ -97,9 +98,12 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
     try {
       await updateDoc(doc(db, "users", statusTarget.docId), { status: newStatus });
       setStatusTarget(null);
-    } catch (e) {
+      setToastMsg({ text: "স্ট্যাটাস সফলভাবে আপডেট করা হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (e: any) {
       console.error(e);
-      alert("স্ট্যাটাস আপডেট করা যায়নি");
+      setToastMsg({ text: "স্ট্যাটাস আপডেট করা যায়নি", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
     } finally {
       setActionLoading(false);
     }
@@ -117,9 +121,12 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
       // 2. Delete user document
       await deleteDoc(doc(db, "users", deleteTarget.docId));
       setDeleteTarget(null);
-    } catch (e) {
+      setToastMsg({ text: "সদস্য সফলভাবে মুছে ফেলা হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (e: any) {
       console.error(e);
-      alert("ডিলিট করা যায়নি");
+      setToastMsg({ text: "ডিলিট করা যায়নি", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
     } finally {
       setActionLoading(false);
     }
@@ -139,11 +146,13 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
     if (!otpTarget) return;
     const trimmedPass = otpPass.trim();
     if (!trimmedPass) {
-      alert("অনুগ্রহ করে একটি ওটিপি পাসওয়ার্ড লিখুন");
+      setToastMsg({ text: "অনুগ্রহ করে একটি ওটিপি পাসওয়ার্ড লিখুন", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
       return;
     }
     if (trimmedPass.length < 6) {
-      alert("পাসওয়ার্ড বা ওটিপি কমপক্ষে ৬ অক্ষরের হতে হবে");
+      setToastMsg({ text: "পাসওয়ার্ড বা ওটিপি কমপক্ষে ৬ অক্ষরের হতে হবে", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
       return;
     }
     setOtpSending(true);
@@ -225,19 +234,18 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
       }
 
       setOtpSuccess(true);
-      alert("মেম্বারের জন্য পাসওয়ার্ড/ওটিপি সফলভাবে সেট করা হয়েছে!");
+      setToastMsg({ text: "মেম্বারের জন্য পাসওয়ার্ড/ওটিপি সফলভাবে সেট করা হয়েছে!", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
     } catch (e: any) {
       console.error(e);
-      alert("ওটিপি সেট করতে সমস্যা হয়েছে: " + e.message);
+      setToastMsg({ text: "ওটিপি সেট করতে সমস্যা হয়েছে: " + (e?.message || ""), type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
     } finally {
       setOtpSending(false);
     }
   };
 
   const handleApproveSubscription = async (user: User) => {
-    if (!window.confirm(`আপনি কি এই কোম্পানির ${user.planRequested === "monthly" ? "মাসিক" : "বাৎসরিক"} সাবস্ক্রিপশন সফলভাবে সক্রিয় করতে চান?`)) {
-      return;
-    }
     setActionLoading(true);
     try {
       const planRequested = user.planRequested || "monthly";
@@ -267,19 +275,18 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
         readBy: [],
       });
 
-      alert("সাবস্ক্রিপশন সফলভাবে সক্রিয় করা হয়েছে!");
-    } catch (e) {
+      setToastMsg({ text: "সাবস্ক্রিপশন সফলভাবে সক্রিয় করা হয়েছে!", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (e: any) {
       console.error(e);
-      alert("সাবস্ক্রিপশন সক্রিয় করা যায়নি");
+      setToastMsg({ text: "সাবস্ক্রিপশন সক্রিয় করা যায়নি", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleRejectSubscription = async (user: User) => {
-    if (!window.confirm("আপনি কি এই কোম্পানির সাবস্ক্রিপশন রিকোয়েস্ট বাতিল করতে চান?")) {
-      return;
-    }
     setActionLoading(true);
     try {
       await updateDoc(doc(db, "users", user.docId), {
@@ -303,10 +310,12 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
         readBy: [],
       });
 
-      alert("রিকোয়েস্ট সফলভাবে বাতিল করা হয়েছে");
-    } catch (e) {
+      setToastMsg({ text: "রিকোয়েস্ট সফলভাবে বাতিল করা হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
+    } catch (e: any) {
       console.error(e);
-      alert("রিকোয়েস্ট বাতিল করা যায়নি");
+      setToastMsg({ text: "রিকোয়েস্ট বাতিল করা যায়নি", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
     } finally {
       setActionLoading(false);
     }
@@ -931,6 +940,26 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-[3000] animate-slideUp">
+          <div
+            className={`px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-bold ${
+              toastMsg.type === "success"
+                ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20"
+                : "bg-rose-600 text-white border-rose-500 shadow-rose-500/20"
+            }`}
+          >
+            {toastMsg.type === "success" ? (
+              <CheckCircle className="w-4 h-4 text-emerald-100 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-100 shrink-0" />
+            )}
+            <span>{toastMsg.text}</span>
           </div>
         </div>
       )}
