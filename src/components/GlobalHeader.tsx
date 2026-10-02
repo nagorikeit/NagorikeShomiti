@@ -139,7 +139,7 @@ export default function GlobalHeader({
           {/* Left: Brand logo & name */}
           <div 
             onClick={() => isActiveOrAdmin && onNavigate("dashboard")}
-            className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition animate-fadeIn min-w-0 flex-1 mr-2"
+            className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition animate-fadeIn min-w-0 mr-2"
           >
             <img
               src="/app_icon.png"
