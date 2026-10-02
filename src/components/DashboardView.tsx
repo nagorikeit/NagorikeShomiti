@@ -1237,9 +1237,11 @@ export default function DashboardView({
 
   // Submit operations
   const handleSubmitEntry = async () => {
+    console.log("handleSubmitEntry called, mode:", addMode);
     setSaving(true);
     try {
       if (addMode === "invest") {
+        console.log("Handling invest entry...");
         if (!newInvestTarget || !newInvestAmount || newInvestAmount <= 0 || !newInvestDate) {
           alert("সঠিক তথ্য পূরণ করুন");
           return;
@@ -1255,6 +1257,7 @@ export default function DashboardView({
         let totalSavingsArrearsPaid = 0;
         let totalInstallmentArrearsPaid = 0;
 
+        console.log("Fetching savings arrears...");
         // 1. Fetch savings arrears
         const histSnap = await getDocs(collection(db, "users", newInvestTarget, "history"));
         const savingsArrearsDocs: any[] = [];
@@ -1273,6 +1276,7 @@ export default function DashboardView({
         });
 
         // Pay off savings arrears
+        console.log("Paying off savings arrears...");
         for (const arrDoc of savingsArrearsDocs) {
           if (remaining <= 0) break;
           const dueAmt = Number(arrDoc.arrears || 0);
@@ -1306,6 +1310,7 @@ export default function DashboardView({
         }
 
         // 2. Fetch/Pay Installment arrears
+        console.log("Paying off installment arrears...");
         if (remaining > 0) {
           // Find open installment contracts for the user
           const userInsts = installments.filter(
@@ -1364,7 +1369,8 @@ export default function DashboardView({
           }
         }
 
-        // 3. Write remaining amount to new investment, OR if a document was uploaded but remaining is 0, write a document receipt entry
+        // 3. Write remaining amount to new investment
+        console.log("Writing remaining investment...");
         if (remaining > 0 || entryFile) {
           const selectedProj = projects.find((p) => p.id === newInvestProjectId);
           const payload: any = {
@@ -1388,6 +1394,7 @@ export default function DashboardView({
         }
 
         // 4. Update the user's total investment balance
+        console.log("Updating user balance...");
         const totalAddedToSavings = parseFloat((totalSavingsArrearsPaid + remaining).toFixed(2));
         const userRef = doc(db, "users", newInvestTarget);
 
@@ -1397,6 +1404,7 @@ export default function DashboardView({
           InvestType: newInvestMode,
         });
 
+        console.log("Investment successful.");
         alert(`ইনভেস্ট সফলভাবে সম্পন্ন হয়েছে।\nসমন্বয়কৃত সেভিংস বকেয়াঃ ৳${totalSavingsArrearsPaid}\nসমন্বয়কৃত কিস্তি বকেয়াঃ ৳${totalInstallmentArrearsPaid}\nনতুন সেভিংস যুক্ত হয়েছেঃ ৳${remaining}`);
 
         // Reset
@@ -1409,6 +1417,7 @@ export default function DashboardView({
         setEntryFile(null);
         setShowAddModal(false);
       } else if (addMode === "transaction") {
+        // ... (remaining modes)
         if (!newTrxProject || !newTrxAmount || newTrxAmount <= 0 || !newTrxDate) {
           alert("সঠিক তথ্য পূরণ করুন");
           return;
