@@ -224,6 +224,8 @@ export default function DashboardView({
   const [newInstMonths, setNewInstMonths] = useState<number>(0);
   const [newInstStartDate, setNewInstStartDate] = useState(new Date().toISOString().split("T")[0]);
 
+  // Loading indicators for saves and deletions
+  const [saving, setSaving] = useState(false);
   const [deletingTrx, setDeletingTrx] = useState<string | null>(null);
   const [deletingProj, setDeletingProj] = useState<string | null>(null);
   const [deletingInst, setDeletingInst] = useState<string | null>(null);
@@ -349,7 +351,7 @@ export default function DashboardView({
           const filtered = prev.filter((h) => h.userDocId !== m.docId);
           const newEntries: any[] = [];
           snap.forEach((docSnap) => {
-            newEntries.push({ docId: docSnap.id, userDocId: m.docId, ...docSnap.data() });
+            newEntries.push({ ...docSnap.data(), docId: docSnap.id, userDocId: m.docId });
           });
           return [...filtered, ...newEntries];
         });
@@ -756,11 +758,11 @@ export default function DashboardView({
         salesShare += (pSaleIncome + pInstIncome) * pShare;
       });
 
-      // D. Subsequent deposits (type is saving or savings_arrears_paid or installment leftover where projectId is not set)
+      // D. Subsequent deposits (including regular savings, installment leftovers, and direct project investments)
       let subsequentDeposits = 0;
       uHistories.forEach((h) => {
         const amt = Number(h.amount || 0);
-        if (amt > 0 && h.type !== "savings_arrears" && (!h.projectId || h.projectId === "company")) {
+        if (amt > 0 && h.type !== "savings_arrears") {
           subsequentDeposits += amt;
         }
       });
@@ -1024,27 +1026,37 @@ export default function DashboardView({
   } = getProjectInvestmentsAndShares();
 
   // Load user details/history modal
-  const handleShowUserHistory = async (u: User) => {
+  const handleShowUserHistory = (u: User, initialTab?: "schedule" | "history") => {
     setSelectedUser(u);
-    setHistoryLoading(true);
-    setInvestHistoryTab("schedule"); // default tab to schedule
+    setInvestHistoryTab(initialTab || "history");
     setSavingsPayOption("monthly");
     setCustomSavingsPayAmount(Number(u.investAmount || 0));
     setShowHistoryModal(true);
-    try {
-      const snap = await getDocs(collection(db, "users", u.docId, "history"));
-      const list: HistoryEntry[] = [];
-      snap.forEach((doc) => {
-        list.push({ docId: doc.id, ...doc.data() } as HistoryEntry);
-      });
-      list.sort((a, b) => b.date.localeCompare(a.date));
-      setUserHistory(list);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setHistoryLoading(false);
-    }
   };
+
+  // Real-time listener for selected member's history while modal is open
+  useEffect(() => {
+    if (!showHistoryModal || !selectedUser) return;
+    setHistoryLoading(true);
+    const historyCol = collection(db, "users", selectedUser.docId, "history");
+    const unsub = onSnapshot(
+      historyCol,
+      (snap) => {
+        const list: HistoryEntry[] = [];
+        snap.forEach((doc) => {
+          list.push({ ...doc.data(), docId: doc.id } as HistoryEntry);
+        });
+        list.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        setUserHistory(list);
+        setHistoryLoading(false);
+      },
+      (err) => {
+        console.error("Error watching user history in modal:", err);
+        setHistoryLoading(false);
+      }
+    );
+    return () => unsub();
+  }, [showHistoryModal, selectedUser?.docId]);
 
   const getSavingsScheduleForUser = (u: User, hList: HistoryEntry[]) => {
     const invType = u.InvestType;
@@ -1864,28 +1876,48 @@ export default function DashboardView({
   };
 
   // Delete Operations
-  const handleDeleteInvestHistory = (h: HistoryEntry) => {
-    if (!selectedUser) return;
+  const handleDeleteInvestHistory = (h: HistoryEntry, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const targetUserId = selectedUser?.docId || (h as any).userDocId;
+    const historyDocId = h.docId || (h as any).id;
+    if (!targetUserId || !historyDocId) {
+      alert("এন্ট্রি বা সদস্যের আইডি পাওয়া যায়নি");
+      return;
+    }
+
+    const entryAmount = Number(h.amount || h.arrears || 0);
+    const entryDate = h.date ? formatDate(h.date) : "অজানা তারিখ";
+    const entryDesc = h.memo || (h.type === "savings_arrears" ? "বকেয়া রেকর্ড" : "ইনভেস্টমেন্ট রেকর্ড");
+
     setConfirmState({
       isOpen: true,
-      title: "লেনদেন ডিলিট নিশ্চিতকরণ",
-      message: "লেনদেনটি স্থায়ীভাবে ডিলিট করতে চান?",
+      title: "এন্ট্রি ডিলিট নিশ্চিতকরণ",
+      message: `আপনি কি "${entryDesc}" (তারিখঃ ${entryDate}, পরিমাণঃ ৳${formatNum(entryAmount)}) এন্ট্রিটি স্থায়ীভাবে ডিলিট করতে চান?`,
       onConfirm: async () => {
-        setDeletingHist(h.docId);
+        setDeletingHist(historyDocId);
         try {
-          const docRef = doc(db, "users", selectedUser.docId, "history", h.docId);
-          const amt = Number(h.amount || 0);
-
-          // Deduct from overall member deposit
-          await updateDoc(doc(db, "users", selectedUser.docId), {
-            amount: increment(-amt),
-          });
-
+          const docRef = doc(db, "users", targetUserId, "history", historyDocId);
           await deleteDoc(docRef);
-          handleShowUserHistory(selectedUser);
-        } catch (e) {
-          console.error(e);
-          alert("ডিলিট করা যায়নি");
+
+          // Update local state immediately for instant feedback
+          setUserHistory((prev) => prev.filter((item) => (item.docId || (item as any).id) !== historyDocId));
+          setAllHistories((prev) => prev.filter((item) => (item.docId || (item as any).id) !== historyDocId));
+
+          const amt = Number(h.amount || 0);
+          if (amt !== 0) {
+            try {
+              await updateDoc(doc(db, "users", targetUserId), {
+                amount: increment(-amt),
+              });
+            } catch (uErr) {
+              console.warn("User balance update note:", uErr);
+            }
+          }
+
+          alert("এন্ট্রি সফলভাবে ডিলিট করা হয়েছে");
+        } catch (e: any) {
+          console.error("Delete history error:", e);
+          alert("ডিলিট করা যায়নি: " + (e?.message || "সার্ভার এরর হয়েছে"));
         } finally {
           setDeletingHist(null);
           setConfirmState(null);
@@ -1894,8 +1926,8 @@ export default function DashboardView({
     });
   };
 
-  const handleDeleteTrx = (e: React.MouseEvent, t: Transaction) => {
-    e.stopPropagation();
+  const handleDeleteTrx = (t: Transaction, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setConfirmState({
       isOpen: true,
       title: "লেনদেন ডিলিট নিশ্চিতকরণ",
@@ -1904,10 +1936,10 @@ export default function DashboardView({
         setDeletingTrx(t.id);
         try {
           await deleteDoc(doc(db, "accounts", t.id));
-          if (selectedProject) handleShowProjectHistory(selectedProject);
+          setTransactions((prev) => prev.filter((item) => item.id !== t.id));
+          setProjectTrxs((prev) => prev.filter((item) => item.id !== t.id));
         } catch (e) {
-          console.error(e);
-          alert("ডিলিট করা যায়নি");
+          console.error("Delete trx error:", e);
         } finally {
           setDeletingTrx(null);
           setConfirmState(null);
@@ -2430,12 +2462,15 @@ export default function DashboardView({
                 shareText: "0.0%", 
                 savingsBalance: 0, 
                 investBalance: 0, 
-                incomeBalance: 0 
+                incomeBalance: 0,
+                totalDeposits: 0,
+                specialInv: 0,
+                totalSavingsWithdrawals: 0
               };
-              const uAmt = calc.savingsBalance;
+              const uAmt = calc.totalDeposits;
               const isSaving = myMember.accountType === "saving";
               const shareInvestment = isSaving ? 0 : calc.expense;
-              const activeBalance = isSaving ? uAmt : uAmt - calc.expense;
+              const activeBalance = isSaving ? calc.savingsBalance : Math.max(0, calc.totalDeposits - calc.expense - (calc.totalSavingsWithdrawals || 0));
               const shareProfit = isSaving ? 0 : calc.income;
               const netWorth = activeBalance + shareProfit;
 
@@ -2472,7 +2507,7 @@ export default function DashboardView({
                     </div>
 
                     <button
-                      onClick={() => handleShowUserHistory(myMember)}
+                      onClick={() => handleShowUserHistory(myMember, "history")}
                       className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-300 font-bold text-xs transition border border-blue-200/60 dark:border-blue-800 shadow-xs cursor-pointer active:scale-98 self-start sm:self-auto"
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -2574,7 +2609,7 @@ export default function DashboardView({
                       💡 জমার রশিদ, কিস্তির বিবরণ ও তারিখ অনুযায়ী যাবতীয় হিসাব দেখতে ক্লিক করুন।
                     </span>
                     <button
-                      onClick={() => handleShowUserHistory(myMember)}
+                      onClick={() => handleShowUserHistory(myMember, "history")}
                       className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -2596,6 +2631,7 @@ export default function DashboardView({
                     <th className="p-3 text-right text-blue-600">সক্রিয় ব্যালেন্স</th>
                     <th className="p-3 text-right text-emerald-600 font-extrabold">শেয়ার লভ্যাংশ (আয়)</th>
                     <th className="p-3 text-right font-black">মোট নেট মূল্য</th>
+                    <th className="p-3 text-center">অ্যাকশন</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -2619,20 +2655,23 @@ export default function DashboardView({
                         shareText: "0.0%", 
                         savingsBalance: 0, 
                         investBalance: 0, 
-                        incomeBalance: 0 
+                        incomeBalance: 0,
+                        totalDeposits: 0,
+                        specialInv: 0,
+                        totalSavingsWithdrawals: 0
                       };
-                      const uAmt = calc.savingsBalance;
+                      const uAmt = calc.totalDeposits;
                       
                       const isSaving = u.accountType === "saving";
                       const shareInvestment = isSaving ? 0 : calc.expense;
-                      const activeBalance = isSaving ? uAmt : uAmt - calc.expense;
+                      const activeBalance = isSaving ? calc.savingsBalance : Math.max(0, calc.totalDeposits - calc.expense - (calc.totalSavingsWithdrawals || 0));
                       const shareProfit = isSaving ? 0 : calc.income;
                       const netWorth = activeBalance + shareProfit;
 
                       return (
                         <tr
                           key={u.docId}
-                          onClick={() => handleShowUserHistory(u)}
+                          onClick={() => handleShowUserHistory(u, "history")}
                           className="hover:bg-slate-50/80 cursor-pointer transition font-medium"
                         >
                           <td className="p-3 font-bold text-blue-700">{u.name}</td>
@@ -2643,6 +2682,17 @@ export default function DashboardView({
                           <td className="p-3 text-right text-emerald-600 font-bold">৳{formatNum(shareProfit)}</td>
                           <td className={`p-3 text-right font-black ${netWorth >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
                             ৳{formatNum(netWorth)}
+                          </td>
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleShowUserHistory(u, "history")}
+                              className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-300 rounded-lg text-xs font-bold transition flex items-center gap-1 mx-auto cursor-pointer"
+                              title="হিস্টোরি দেখুন ও এন্ট্রি ম্যানেজ করুন"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>হিস্টোরি</span>
+                            </button>
                           </td>
                         </tr>
                       );
@@ -3602,19 +3652,29 @@ export default function DashboardView({
                                   <p className={`font-extrabold text-xs ${isArrears ? "text-rose-600" : "text-emerald-600"}`}>
                                     ৳{formatNum(amt)}
                                   </p>
-                                  {isCompanyOrAdmin && !isArrears && (
-                                    <div className="flex items-center gap-1.5">
+                                  {isCompanyOrAdmin && (
+                                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                      {!isArrears && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingInvest({ entry: h, userId: selectedUser.docId })}
+                                          className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-1 rounded font-bold transition cursor-pointer"
+                                        >
+                                          এডিট
+                                        </button>
+                                      )}
                                       <button
-                                        onClick={() => setEditingInvest({ entry: h, userId: selectedUser.docId })}
-                                        className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded font-bold"
+                                        type="button"
+                                        onClick={(e) => handleDeleteInvestHistory(h, e)}
+                                        disabled={deletingHist === (h.docId || (h as any).id)}
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded transition cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                                        title="ডিলিট করুন"
                                       >
-                                        এডিট
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteInvestHistory(h)}
-                                        className="p-1 bg-rose-50 text-rose-500 rounded hover:bg-rose-100"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
+                                        {deletingHist === (h.docId || (h as any).id) ? (
+                                          <span className="w-3.5 h-3.5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin inline-block"></span>
+                                        ) : (
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        )}
                                       </button>
                                     </div>
                                   )}
@@ -5083,13 +5143,24 @@ export default function DashboardView({
 
             <div className="flex gap-2.5 pt-3 border-t border-slate-100">
               <button
+                type="button"
                 onClick={confirmState.onConfirm}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95"
+                disabled={Boolean(deletingHist || deletingTrx || deletingProj || deletingInst)}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white py-2.5 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
               >
-                হ্যাঁ, নিশ্চিত
+                {(deletingHist || deletingTrx || deletingProj || deletingInst) ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>ডিলিট হচ্ছে...</span>
+                  </>
+                ) : (
+                  <span>হ্যাঁ, নিশ্চিত</span>
+                )}
               </button>
               <button
+                type="button"
                 onClick={() => setConfirmState(null)}
+                disabled={Boolean(deletingHist || deletingTrx || deletingProj || deletingInst)}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 বাতিল
