@@ -2185,8 +2185,8 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* Ledger-like visual list of cash flows (Very Compact Grid) */}
-          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
+          {/* Ledger-like visual list of cash flows (Centrally Aligned Grid) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 justify-items-center">
             {/* 1. SAVINGS CASH */}
             <div className="bg-emerald-50/20 border border-emerald-100/50 p-2 rounded-xl flex items-center gap-1.5 hover:shadow-sm transition">
               <div className="p-1 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
@@ -2356,7 +2356,7 @@ export default function DashboardView({
       </div>
 
       {/* Tabs */}
-      <div className="mx-4 mt-5 p-1.5 bg-slate-100/80 dark:bg-slate-800/40 rounded-2xl flex flex-wrap gap-1.5 border border-slate-200/60 dark:border-slate-700/50 shadow-sm">
+      <div className="mx-4 mt-5 p-1.5 bg-slate-100/80 dark:bg-slate-800/40 rounded-2xl flex flex-wrap gap-1.5 border border-slate-200/60 dark:border-slate-700/50 shadow-sm justify-center">
         <button
           onClick={() => setActiveTab("invest")}
           className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex-1 min-w-[125px] md:flex-initial md:min-w-[140px] ${
