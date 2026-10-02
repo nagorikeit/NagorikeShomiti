@@ -134,12 +134,12 @@ export default function GlobalHeader({
 
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-150 dark:border-slate-850 shadow-sm font-sans select-none transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="grid grid-cols-[auto,1fr,auto] items-center h-16 gap-2">
           {/* Left: Brand logo & name */}
           <div 
             onClick={() => isActiveOrAdmin && onNavigate("dashboard")}
-            className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition animate-fadeIn min-w-0 mr-2"
+            className="flex items-center gap-2 cursor-pointer active:scale-95 transition animate-fadeIn"
           >
             <img
               src="/app_icon.png"
