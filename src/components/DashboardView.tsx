@@ -230,6 +230,7 @@ export default function DashboardView({
   const [deletingProj, setDeletingProj] = useState<string | null>(null);
   const [deletingInst, setDeletingInst] = useState<string | null>(null);
   const [deletingHist, setDeletingHist] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   // Trigger opening Add Modal when navigated with openAdd parameter
   useEffect(() => {
@@ -1881,7 +1882,8 @@ export default function DashboardView({
     const targetUserId = selectedUser?.docId || (h as any).userDocId;
     const historyDocId = h.docId || (h as any).id;
     if (!targetUserId || !historyDocId) {
-      alert("এন্ট্রি বা সদস্যের আইডি পাওয়া যায়নি");
+      setToastMsg({ text: "এন্ট্রি বা সদস্যের আইডি পাওয়া যায়নি", type: "error" });
+      setTimeout(() => setToastMsg(null), 3000);
       return;
     }
 
@@ -1914,13 +1916,16 @@ export default function DashboardView({
             }
           }
 
-          alert("এন্ট্রি সফলভাবে ডিলিট করা হয়েছে");
+          setConfirmState(null);
+          setDeletingHist(null);
+          setToastMsg({ text: "এন্ট্রি সফলভাবে ডিলিট করা হয়েছে", type: "success" });
+          setTimeout(() => setToastMsg(null), 3000);
         } catch (e: any) {
           console.error("Delete history error:", e);
-          alert("ডিলিট করা যায়নি: " + (e?.message || "সার্ভার এরর হয়েছে"));
-        } finally {
-          setDeletingHist(null);
           setConfirmState(null);
+          setDeletingHist(null);
+          setToastMsg({ text: "ডিলিট করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
+          setTimeout(() => setToastMsg(null), 4000);
         }
       }
     });
@@ -1938,11 +1943,16 @@ export default function DashboardView({
           await deleteDoc(doc(db, "accounts", t.id));
           setTransactions((prev) => prev.filter((item) => item.id !== t.id));
           setProjectTrxs((prev) => prev.filter((item) => item.id !== t.id));
-        } catch (e) {
-          console.error("Delete trx error:", e);
-        } finally {
-          setDeletingTrx(null);
           setConfirmState(null);
+          setDeletingTrx(null);
+          setToastMsg({ text: "লেনদেন সফলভাবে ডিলিট করা হয়েছে", type: "success" });
+          setTimeout(() => setToastMsg(null), 3000);
+        } catch (e: any) {
+          console.error("Delete trx error:", e);
+          setConfirmState(null);
+          setDeletingTrx(null);
+          setToastMsg({ text: "লেনদেন ডিলিট করা যায়নি", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
         }
       }
     });
@@ -1954,6 +1964,7 @@ export default function DashboardView({
       title: "প্রজেক্ট ডিলিট নিশ্চিতকরণ",
       message: `"${p.name}" প্রজেক্টটি ডিলিট করলে এর সকল লেনদেন ডিলিট হয়ে যাবে। নিশ্চিত?`,
       onConfirm: async () => {
+        setDeletingProj(p.id);
         try {
           // Delete project document
           await deleteDoc(doc(db, "projects", p.id));
@@ -1966,11 +1977,16 @@ export default function DashboardView({
 
           setSelectedProject(null);
           setShowHistoryModal(false);
+          setConfirmState(null);
+          setDeletingProj(null);
+          setToastMsg({ text: "প্রজেক্ট সফলভাবে ডিলিট করা হয়েছে", type: "success" });
+          setTimeout(() => setToastMsg(null), 3000);
         } catch (e) {
           console.error(e);
-          alert("ডিলিট করা যায়নি");
-        } finally {
           setConfirmState(null);
+          setDeletingProj(null);
+          setToastMsg({ text: "প্রজেক্ট ডিলিট করা যায়নি", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
         }
       }
     });
@@ -1982,15 +1998,21 @@ export default function DashboardView({
       title: "কিস্তি ডিলিট নিশ্চিতকরণ",
       message: `"${inst.customerName}" কিস্তি কন্ট্যাক্টটি ডিলিট করতে চান?`,
       onConfirm: async () => {
+        setDeletingInst(inst.id);
         try {
           await deleteDoc(doc(db, "installments", inst.id));
           setSelectedProjectInstallment(null);
           setEditingInstallment(null);
+          setConfirmState(null);
+          setDeletingInst(null);
+          setToastMsg({ text: "কিস্তি চুক্তি সফলভাবে ডিলিট করা হয়েছে", type: "success" });
+          setTimeout(() => setToastMsg(null), 3000);
         } catch (e) {
           console.error(e);
-          alert("ডিলিট করা যায়নি");
-        } finally {
           setConfirmState(null);
+          setDeletingInst(null);
+          setToastMsg({ text: "কিস্তি ডিলিট করা যায়নি", type: "error" });
+          setTimeout(() => setToastMsg(null), 3000);
         }
       }
     });
@@ -5166,6 +5188,26 @@ export default function DashboardView({
                 বাতিল
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-[3000] animate-slideUp">
+          <div
+            className={`px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-bold ${
+              toastMsg.type === "success"
+                ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20"
+                : "bg-rose-600 text-white border-rose-500 shadow-rose-500/20"
+            }`}
+          >
+            {toastMsg.type === "success" ? (
+              <CheckCircle className="w-4 h-4 text-emerald-100 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-100 shrink-0" />
+            )}
+            <span>{toastMsg.text}</span>
           </div>
         </div>
       )}
