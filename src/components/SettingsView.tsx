@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { updatePassword } from "firebase/auth";
-import { doc, updateDoc, addDoc, collection, serverTimestamp, getDoc, setDoc } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, serverTimestamp, getDoc, setDoc, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { User } from "../types";
 import { 
@@ -20,7 +20,10 @@ import {
   UserCheck,
   Check,
   CreditCard,
-  Globe
+  Globe,
+  Download,
+  Database,
+  FileSpreadsheet
 } from "lucide-react";
 
 interface SettingsViewProps {
@@ -332,6 +335,148 @@ export default function SettingsView({
       showToast("❌ সাবমিট করা যায়নি: " + err.message, "error");
     } finally {
       setReportSubmitting(false);
+    }
+  };
+
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [csvLoading, setCsvLoading] = useState(false);
+
+  const handleDownloadBackupJSON = async () => {
+    if (!currentUser) return;
+    setBackupLoading(true);
+    try {
+      const isAdm = currentUser.role === "admin";
+      const targetCompanyId = currentUser.role === "company" ? currentUser.docId : currentUser.companyId;
+
+      // 1. Fetch Users
+      const usersQuery = isAdm
+        ? collection(db, "users")
+        : query(collection(db, "users"), where("companyId", "==", targetCompanyId));
+      const usersSnap = await getDocs(usersQuery);
+      const usersList: any[] = [];
+      const userHistories: Record<string, any[]> = {};
+
+      for (const uDoc of usersSnap.docs) {
+        usersList.push({ id: uDoc.id, ...uDoc.data() });
+        try {
+          const histSnap = await getDocs(collection(db, "users", uDoc.id, "history"));
+          if (!histSnap.empty) {
+            userHistories[uDoc.id] = histSnap.docs.map(h => ({ id: h.id, ...h.data() }));
+          }
+        } catch {
+          // ignore individual subcollection errors
+        }
+      }
+
+      // 2. Fetch Projects
+      const projQuery = isAdm
+        ? collection(db, "projects")
+        : query(collection(db, "projects"), where("companyId", "==", targetCompanyId));
+      const projSnap = await getDocs(projQuery);
+      const projList = projSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // 3. Fetch Transactions
+      const trxsQuery = isAdm
+        ? collection(db, "transactions")
+        : query(collection(db, "transactions"), where("companyId", "==", targetCompanyId));
+      const trxsSnap = await getDocs(trxsQuery);
+      const trxsList = trxsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // 4. Fetch Installments
+      const instQuery = isAdm
+        ? collection(db, "installments")
+        : query(collection(db, "installments"), where("companyId", "==", targetCompanyId));
+      const instSnap = await getDocs(instQuery);
+      const instList = instSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // 5. Package full backup object
+      const backupData = {
+        appName: "আমার সমিতি",
+        version: "2.0",
+        exportDate: new Date().toISOString(),
+        exportedBy: {
+          name: currentUser.name,
+          role: currentUser.role,
+          phone: currentUser.mobile || (currentUser as any).phone || ""
+        },
+        stats: {
+          totalUsers: usersList.length,
+          totalProjects: projList.length,
+          totalTransactions: trxsList.length,
+          totalInstallments: instList.length
+        },
+        data: {
+          users: usersList,
+          userHistories,
+          projects: projList,
+          transactions: trxsList,
+          installments: instList
+        }
+      };
+
+      // Trigger download
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+      const downloadAnchor = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `amar-somiti-backup-${dateStr}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      showToast("✅ সম্পূর্ণ ডেটা ব্যাকআপ সফলভাবে ডাউনলোড হয়েছে!");
+    } catch (err: any) {
+      console.error("Backup error:", err);
+      showToast("❌ ব্যাকআপ ব্যর্থ: " + (err?.message || "সার্ভার এরর"), "error");
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleExportMembersCSV = async () => {
+    if (!currentUser) return;
+    setCsvLoading(true);
+    try {
+      const isAdm = currentUser.role === "admin";
+      const targetCompanyId = currentUser.role === "company" ? currentUser.docId : currentUser.companyId;
+
+      const usersQuery = isAdm
+        ? collection(db, "users")
+        : query(collection(db, "users"), where("companyId", "==", targetCompanyId));
+      const usersSnap = await getDocs(usersQuery);
+
+      const headers = ["নাম", "মোবাইল", "অ্যাকাউন্ট টাইপ", "মোট জমা/ব্যালেন্স", "কাস্টম শেয়ার %", "স্ট্যাটাস", "আইডি"];
+      const rows = usersSnap.docs.map(d => {
+        const u = d.data();
+        return [
+          `"${(u.name || "").replace(/"/g, '""')}"`,
+          `"${u.mobile || u.phone || ""}"`,
+          `"${u.accountType === "business" ? "ব্যবসায়িক" : "সঞ্চয়ী"}"`,
+          u.amount || 0,
+          u.customShare ? `${u.customShare}%` : "অটো",
+          `"${u.status || "active"}"`,
+          `"${d.id}"`
+        ];
+      });
+
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      downloadAnchor.setAttribute("href", url);
+      downloadAnchor.setAttribute("download", `members-list-${dateStr}.csv`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(url);
+
+      showToast("✅ সদস্য তালিকা CSV এক্সপোর্ট সম্পন্ন হয়েছে!");
+    } catch (err: any) {
+      console.error("CSV Export error:", err);
+      showToast("❌ CSV এক্সপোর্ট ব্যর্থ: " + (err?.message || "সার্ভার এরর"), "error");
+    } finally {
+      setCsvLoading(false);
     }
   };
 
@@ -753,6 +898,97 @@ export default function SettingsView({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Section: Data Backup & Security Export */}
+        {(isCompany || isAdmin) && (
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-emerald-50 rounded-2xl text-emerald-600 shrink-0 border border-emerald-100">
+                <Database className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xs font-extrabold text-slate-800">💾 ডেটা ব্যাকআপ ও এক্সপোর্ট (Data Backup & Safety)</h3>
+                <p className="text-[10px] text-slate-400 leading-normal mt-0.5">
+                  সমিতির সকল সদস্য, সঞ্চয়, ঋণ, কিস্তি ও প্রজেক্টের যাবতীয় হিসাব সুরক্ষিত রাখতে ১-ক্লিকে ব্যাকআপ ডাউনলোড করুন।
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Full JSON Database Backup */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Download className="w-4 h-4 text-emerald-600" />
+                    <span>সম্পূর্ণ ডেটাবেস ব্যাকআপ (JSON)</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    সদস্য, লেনদেন, প্রজেক্ট ও কিস্তির পূর্ণাঙ্গ ডিজিটাল ব্যাকআপ ফাইল। কম্পিউটার বা ড্রাইভে সংরক্ষণযোগ্য।
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownloadBackupJSON}
+                  disabled={backupLoading}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {backupLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>ডাউনলোড হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>ব্যাকআপ ডাউনলোড করুন</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Members CSV Export */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                    <span>সদস্য তালিকা এক্সেল (CSV)</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    সকল সদস্যের নাম, ফোন, ব্যালেন্স ও স্ট্যাটাস শিট। মাইক্রোসফট এক্সেল বা গুগল শিটে ওপেন ও প্রিন্টযোগ্য।
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleExportMembersCSV}
+                  disabled={csvLoading}
+                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {csvLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>এক্সপোর্ট হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>এক্সেল শিট ডাউনলোড</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl text-[10px] text-emerald-800 space-y-1">
+              <span className="font-extrabold flex items-center gap-1">
+                <Shield className="w-3.5 h-3.5 text-emerald-600" />
+                ক্লাউড অটো-ব্যাকআপ সুরক্ষিত (Google Cloud Firestore):
+              </span>
+              <p className="text-slate-600 font-medium leading-relaxed">
+                আপনার ডেটা স্বয়ংক্রিয়ভাবে গুগল ক্লাউডের রিয়েল-টাইম ডেটাবেসে রেপ্লিকেটেড থাকে। বাড়তি নিরাপত্তার জন্য প্রতি সপ্তাহ বা মাসে ১ বার ব্যাকআপ ফাইলটি ডাউনলোড করে নিজের গুগল ড্রাইভে সংরক্ষণ রাখার পরামর্শ দেওয়া হচ্ছে।
+              </p>
             </div>
           </div>
         )}
