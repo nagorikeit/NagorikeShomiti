@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent } from "react";
-import { db } from "../firebase";
+import { db, safeGetDocs } from "../firebase";
 import { User, HistoryEntry, Project, Transaction, Installment, InstallmentStep, TransactionRequest, CompanyPaymentAccount } from "../types";
 import { 
   collection, 
@@ -413,7 +413,8 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
 
     activeCompanyMembers.forEach((u) => {
       const uAmt = Number(u.amount || 0);
-      if (u.accountType === "saving") return;
+      const isPureSavingOnly = u.accountType === "saving" && !u.customShare && (memberTotalSpecialInv[u.docId] || 0) <= 0;
+      if (isPureSavingOnly) return;
 
       const totalSpecial = memberTotalSpecialInv[u.docId] || 0;
       const generalAmt = Math.max(0, uAmt - totalSpecial);
@@ -433,7 +434,8 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
 
     activeCompanyMembers.forEach((u) => {
       memberProjectsShare[u.docId] = {};
-      if (u.accountType === "saving") {
+      const isPureSavingOnly = u.accountType === "saving" && !u.customShare && (memberTotalSpecialInv[u.docId] || 0) <= 0;
+      if (isPureSavingOnly) {
         activeCompanyProjects.forEach((p) => {
           memberProjectsShare[u.docId][p.id] = 0;
         });
@@ -442,8 +444,8 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
 
       activeCompanyProjects.forEach((p) => {
         let share = 0;
-        if (u.customShare !== undefined && u.customShare !== null) {
-          share = u.customShare / 100;
+        if (u.customShare !== undefined && u.customShare !== null && u.customShare !== "" && !isNaN(Number(u.customShare))) {
+          share = Number(u.customShare) / 100;
         } else {
           const partAmt = (memberProjectsInv[u.docId] || {})[p.id] || 0;
           const projTotal = projectTotalParticipating[p.id] || 0;
@@ -1305,10 +1307,10 @@ export default function TransactionsView({ currentUser, onNavigate }: Transactio
           let remaining = req.amount;
           let totalSavingsArrearsPaid = 0;
 
-          // Fetch savings arrears
-          const histSnap = await getDocs(collection(db, "users", req.userId, "history"));
+          // Fetch savings arrears safely (offline & online)
+          const histSnap = await safeGetDocs(collection(db, "users", req.userId, "history"), 2500);
           const savingsArrearsDocs: any[] = [];
-          histSnap.forEach((dDoc) => {
+          histSnap.forEach((dDoc: any) => {
             const h = { docId: dDoc.id, ...dDoc.data() } as any;
             if (h.type === "savings_arrears") {
               savingsArrearsDocs.push(h);

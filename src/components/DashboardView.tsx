@@ -13,7 +13,7 @@ import {
   increment,
   collectionGroup,
 } from "firebase/firestore";
-import { db, auth } from "../firebase";
+import { db, auth, safeGetDocs, safeGetDoc } from "../firebase";
 import { User, Project, Transaction, Installment, HistoryEntry, InstallmentStep } from "../types";
 import GoogleAdComponent from "./GoogleAdComponent";
 import GroupFundView from "./GroupFundView";
@@ -52,6 +52,8 @@ import {
   CreditCard,
   ArrowRight,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const writtenArrearsKeysGlobal = new Set<string>();
@@ -161,6 +163,7 @@ export default function DashboardView({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [editingUserShare, setEditingUserShare] = useState<User | null>(null);
   const [customShareValue, setCustomShareValue] = useState<string>("");
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     title: string;
@@ -393,8 +396,8 @@ export default function DashboardView({
         await Promise.all(
           targetUsersForArrears.map(async (u) => {
             try {
-              const histSnap = await getDocs(collection(db, "users", u.docId, "history"));
-              histSnap.forEach((doc) => {
+              const histSnap = await safeGetDocs(collection(db, "users", u.docId, "history"), 1500);
+              histSnap.forEach((doc: any) => {
                 const h = doc.data();
                 if (h.type === "savings_arrears") {
                   totalArrears += Number(h.arrears || 0);
@@ -407,11 +410,11 @@ export default function DashboardView({
         );
       } catch (err) {
         console.error("Error fetching arrears batch", err);
-      }
-
-      if (isMounted) {
-        setTotalArrearsAmount(totalArrears);
-        setArrearsLoading(false);
+      } finally {
+        if (isMounted) {
+          setTotalArrearsAmount(totalArrears);
+          setArrearsLoading(false);
+        }
       }
     };
 
@@ -620,24 +623,43 @@ export default function DashboardView({
     // 4. Map each history entry to their parent user
     const companyHistories = allHistories.filter((h) => memberDocIds.has(h.userDocId));
 
-    // 5. For each member, compute their total special project investments in history
+    // 5. For each member, compute their total deposits and special project investments in history
     const memberSpecialInvMap: Record<string, Record<string, number>> = {}; // userDocId -> { projectId -> amount }
     const memberTotalSpecialInv: Record<string, number> = {}; // userDocId -> total special amount
+    const memberTotalDepositsMap: Record<string, number> = {}; // userDocId -> total deposits
+    const memberTotalWithdrawalsMap: Record<string, number> = {}; // userDocId -> total withdrawals
 
-    companyHistories.forEach((h) => {
-      if (h.type === "savings_arrears") return;
-      const amt = Number(h.amount || 0);
-      if (amt <= 0) return;
+    companyMembers.forEach((u) => {
+      const uHistories = companyHistories.filter((h) => h.userDocId === u.docId);
+      memberSpecialInvMap[u.docId] = {};
+      let totalDep = 0;
+      let totalWith = 0;
 
-      const uId = h.userDocId;
-      if (!memberSpecialInvMap[uId]) memberSpecialInvMap[uId] = {};
-      
-      // If it is targeted to a specific project
-      if (h.projectId && h.projectId !== "company") {
-        memberSpecialInvMap[uId][h.projectId] = (memberSpecialInvMap[uId][h.projectId] || 0) + amt;
-        memberTotalSpecialInv[uId] = (memberTotalSpecialInv[uId] || 0) + amt;
+      uHistories.forEach((h) => {
+        if (h.type === "savings_arrears") return;
+        const amt = Number(h.amount || 0);
+
+        if (amt > 0) {
+          totalDep += amt;
+          if (h.projectId && h.projectId !== "company") {
+            memberSpecialInvMap[u.docId][h.projectId] = (memberSpecialInvMap[u.docId][h.projectId] || 0) + amt;
+            memberTotalSpecialInv[u.docId] = (memberTotalSpecialInv[u.docId] || 0) + amt;
+          }
+        } else if ((amt < 0 || h.type === "withdraw") && h.type !== "invest_convert_out") {
+          totalWith += Math.abs(amt);
+        }
+      });
+
+      // If user has amount on profile but no histories yet, respect u.amount
+      if (totalDep === 0 && Number(u.amount || 0) > 0) {
+        totalDep = Number(u.amount || 0);
       }
+
+      memberTotalDepositsMap[u.docId] = totalDep;
+      memberTotalWithdrawalsMap[u.docId] = totalWith;
     });
+
+    const allCompanyTotalDeposits = companyMembers.reduce((sum, m) => sum + (memberTotalDepositsMap[m.docId] || 0), 0);
 
     // 6. Filter company transactions
     const companyTransactions = transactions.filter((t) => {
@@ -685,32 +707,65 @@ export default function DashboardView({
       }
     });
 
-    // 9. Compute project-specific shares for each business member
+    // 9. Compute project-specific shares for each member
     const memberProjectsShare: Record<string, Record<string, number>> = {}; // userDocId -> { projectId -> share fraction }
 
+    // Pre-calculate member's general pool deposit (total deposits minus special tagged investments in other projects)
+    const memberGeneralDepositMap: Record<string, number> = {};
     companyMembers.forEach((u) => {
       memberProjectsShare[u.docId] = {};
-      
-      companyProjects.forEach((p) => {
+      const uDeposits = memberTotalDepositsMap[u.docId] || 0;
+      const uSpecialTotal = memberTotalSpecialInv[u.docId] || 0;
+      memberGeneralDepositMap[u.docId] = Math.max(0, uDeposits - uSpecialTotal);
+    });
+
+    companyProjects.forEach((p) => {
+      // 1. Calculate sum of custom shares if any
+      let customShareSum = 0;
+      companyMembers.forEach((u) => {
+        if (u.customShare !== undefined && u.customShare !== null && u.customShare !== "" && !isNaN(Number(u.customShare))) {
+          customShareSum += Number(u.customShare) / 100;
+        }
+      });
+      const remainingSharePool = Math.max(0, 1 - customShareSum);
+
+      // 2. Calculate non-custom total participating amount for project p
+      let nonCustomTotalParticipating = 0;
+      companyMembers.forEach((u) => {
+        const hasCustom = u.customShare !== undefined && u.customShare !== null && u.customShare !== "" && !isNaN(Number(u.customShare));
+        if (!hasCustom) {
+          const specAmt = (memberSpecialInvMap[u.docId] || {})[p.id] || 0;
+          const genAmt = memberGeneralDepositMap[u.docId] || 0;
+          nonCustomTotalParticipating += (specAmt + genAmt);
+        }
+      });
+
+      // 3. Assign share for each member
+      companyMembers.forEach((u) => {
         let share = 0;
-        if (u.customShare !== undefined && u.customShare !== null) {
-          share = u.customShare / 100;
+        if (u.customShare !== undefined && u.customShare !== null && u.customShare !== "" && !isNaN(Number(u.customShare))) {
+          share = Number(u.customShare) / 100;
         } else {
-          const partAmt = (memberSpecialInvMap[u.docId] || {})[p.id] || 0;
-          const projTotalSpecial = companyMembers.reduce((sum, m) => sum + ((memberSpecialInvMap[m.docId] || {})[p.id] || 0), 0);
-          if (projTotalSpecial > 0) {
-            share = partAmt / projTotalSpecial;
+          const specAmt = (memberSpecialInvMap[u.docId] || {})[p.id] || 0;
+          const genAmt = memberGeneralDepositMap[u.docId] || 0;
+          const partAmt = specAmt + genAmt;
+
+          if (nonCustomTotalParticipating > 0) {
+            share = (partAmt / nonCustomTotalParticipating) * remainingSharePool;
+          } else if (allCompanyTotalDeposits > 0) {
+            share = ((memberTotalDepositsMap[u.docId] || 0) / allCompanyTotalDeposits) * remainingSharePool;
           } else {
-            // Default to equal share among business members if no investments yet
-            const businessMembers = companyMembers.filter((m) => m.accountType !== "saving");
-            share = businessMembers.length > 0 ? (u.accountType !== "saving" ? 1 / businessMembers.length : 0) : 0;
+            const nonCustomMembers = companyMembers.filter(
+              (m) => !(m.customShare !== undefined && m.customShare !== null && m.customShare !== "" && !isNaN(Number(m.customShare)))
+            );
+            share = nonCustomMembers.length > 0 ? remainingSharePool / nonCustomMembers.length : 0;
           }
         }
         memberProjectsShare[u.docId][p.id] = share;
       });
     });
 
-    // 10. For each member, calculate their three balances
+    // 10. For each member, calculate their balances and display shares
     const memberCalculations: Record<string, { 
       expense: number; 
       income: number; 
@@ -733,8 +788,6 @@ export default function DashboardView({
     let totalGeneralCompanyPool = 0;
 
     companyMembers.forEach((u) => {
-      const uHistories = companyHistories.filter((h) => h.userDocId === u.docId);
-
       // A. Special investments
       const specialInv = memberTotalSpecialInv[u.docId] || 0;
 
@@ -759,30 +812,11 @@ export default function DashboardView({
         salesShare += (pSaleIncome + pInstIncome) * pShare;
       });
 
-      // D. Subsequent deposits (including regular savings, installment leftovers, and direct project investments)
-      let subsequentDeposits = 0;
-      uHistories.forEach((h) => {
-        const amt = Number(h.amount || 0);
-        if (amt > 0 && h.type !== "savings_arrears") {
-          subsequentDeposits += amt;
-        }
-      });
+      // D. Total deposits from member's calculated history
+      const totalDeposits = memberTotalDepositsMap[u.docId] || 0;
 
-      // COMMENT: investAmount represents the target installment rate/subscription target rate (কিস্তির হার/নির্ধারিত পরিমাণ), NOT an initial deposit.
-      // Therefore, initialDeposit MUST be 0. Do NOT set initialDeposit to u.investAmount, as that would falsely inflate the member's balance with an undeposited amount.
-      // Future developers: DO NOT change this back to u.investAmount!
-      const initialDeposit = 0;
-      const totalDeposits = initialDeposit + subsequentDeposits;
-
-      // E. Total withdrawals (history amount < 0)
-      let withdrawals = 0;
-      uHistories.forEach((h) => {
-        const amt = Number(h.amount || 0);
-        if ((amt < 0 || h.type === "withdraw") && h.type !== "invest_convert_out") {
-          withdrawals += Math.abs(amt);
-        }
-      });
-
+      // E. Total withdrawals
+      const withdrawals = memberTotalWithdrawalsMap[u.docId] || 0;
       let totalSavingsWithdrawals = 0;
       let totalIncomeWithdrawals = 0;
 
@@ -806,22 +840,20 @@ export default function DashboardView({
       memberProjectsInv[u.docId] = {};
       companyProjects.forEach((p) => {
         const specAmt = (memberSpecialInvMap[u.docId] || {})[p.id] || 0;
-        const pShare = (memberProjectsShare[u.docId] || {})[p.id] || 0;
-        const pExpense = (projSummary[p.id] || { expense: 0 }).expense;
-        const partAmt = specAmt + (pExpense * pShare);
+        const partAmt = specAmt + (memberGeneralDepositMap[u.docId] || 0);
         
         memberProjectsInv[u.docId][p.id] = partAmt;
         projectTotalParticipating[p.id] = (projectTotalParticipating[p.id] || 0) + partAmt;
       });
 
-      const businessMembers = companyMembers.filter((m) => m.accountType !== "saving");
-      const businessTotalSavings = businessMembers.reduce((sum, m) => sum + (m.savingsBalance || 0), 0);
-      
+      // Calculate display share for Invest Mode table
       let displayShare = 0;
-      if (u.customShare !== undefined && u.customShare !== null) {
-        displayShare = u.customShare / 100;
+      if (u.customShare !== undefined && u.customShare !== null && u.customShare !== "" && !isNaN(Number(u.customShare))) {
+        displayShare = Number(u.customShare) / 100;
+      } else if (allCompanyTotalDeposits > 0) {
+        displayShare = totalDeposits / allCompanyTotalDeposits;
       } else {
-        displayShare = businessTotalSavings > 0 ? savingsBalance / businessTotalSavings : 0;
+        displayShare = companyMembers.length > 0 ? 1 / companyMembers.length : 0;
       }
 
       memberCalculations[u.docId] = {
@@ -849,7 +881,9 @@ export default function DashboardView({
       totalGeneralCompanyPool,
       memberSpecialInvMap,
       memberTotalSpecialInv,
+      memberTotalDepositsMap,
       memberGeneralInv,
+      memberGeneralDepositMap,
       memberProjectsShare,
       memberCalculations,
       projectInstallmentIncome,
@@ -1020,7 +1054,9 @@ export default function DashboardView({
     totalGeneralCompanyPool,
     memberSpecialInvMap,
     memberTotalSpecialInv,
+    memberTotalDepositsMap,
     memberGeneralInv,
+    memberGeneralDepositMap,
     memberProjectsShare,
     memberCalculations,
     projectInstallmentIncome,
@@ -1212,10 +1248,10 @@ export default function DashboardView({
     // 1. Calculate savings arrears (any arrears in user history)
     const fetchSavings = async () => {
       try {
-        const histSnap = await getDocs(collection(db, "users", newInvestTarget, "history"));
+        const histSnap = await safeGetDocs(collection(db, "users", newInvestTarget, "history"), 2000);
         if (!isSubscribed) return;
         let savingsArr = 0;
-        histSnap.forEach((doc) => {
+        histSnap.forEach((doc: any) => {
           const h = doc.data() as any;
           if (h.type === "savings_arrears") {
             savingsArr += Number(h.arrears || 0);
@@ -1272,10 +1308,10 @@ export default function DashboardView({
         let totalSavingsArrearsPaid = 0;
         let totalInstallmentArrearsPaid = 0;
 
-        // 1. Fetch savings arrears
-        const histSnap = await getDocs(collection(db, "users", newInvestTarget, "history"));
+        // 1. Fetch savings arrears safely (works offline & online)
+        const histSnap = await safeGetDocs(collection(db, "users", newInvestTarget, "history"), 2500);
         const savingsArrearsDocs: any[] = [];
-        histSnap.forEach((doc) => {
+        histSnap.forEach((doc: any) => {
           const h = { docId: doc.id, ...doc.data() } as any;
           if (h.type === "savings_arrears") {
             savingsArrearsDocs.push(h);
@@ -1404,14 +1440,18 @@ export default function DashboardView({
           await addDoc(collection(db, "users", newInvestTarget, "history"), payload);
         }
 
-        // 4. Update the user's total investment balance
+        // 4. Update the user's total investment balance safely
         const totalAddedToSavings = parseFloat((totalSavingsArrearsPaid + remaining).toFixed(2));
         const userRef = doc(db, "users", newInvestTarget);
 
-        await updateDoc(userRef, {
+        const userUpdatePayload: any = {
           amount: increment(totalAddedToSavings),
-          accountType: newInvestAcctType,
-          InvestType: newInvestMode,
+        };
+        if (newInvestAcctType) userUpdatePayload.accountType = newInvestAcctType;
+        if (newInvestMode) userUpdatePayload.InvestType = newInvestMode;
+
+        await updateDoc(userRef, userUpdatePayload).catch((uErr) => {
+          console.warn("User balance update note:", uErr);
         });
 
         // Reset and close modal
@@ -1674,30 +1714,30 @@ export default function DashboardView({
       const { entry, userId } = editingInvest;
       const docRef = doc(db, "users", userId, "history", entry.docId);
 
-      // Fetch existing amount to compute diff
-      const oldSnap = await getDoc(docRef);
-      if (oldSnap.exists()) {
-        const oldAmt = Number(oldSnap.data().amount || 0);
-        const diff = entry.amount - oldAmt;
+      // Fetch existing amount to compute diff safely (offline & online)
+      const oldSnap = await safeGetDoc(docRef);
+      const oldAmt = oldSnap.exists() ? Number(oldSnap.data().amount || 0) : Number(entry.amount || 0);
+      const diff = entry.amount - oldAmt;
 
-        // Update history doc
-        await updateDoc(docRef, {
-          amount: entry.amount,
-          date: entry.date,
-          memo: entry.memo || "",
-        });
+      // Update history doc
+      await updateDoc(docRef, {
+        amount: entry.amount,
+        date: entry.date,
+        memo: entry.memo || "",
+      });
 
-        // Update overall user amount
+      // Update overall user amount
+      if (diff !== 0) {
         await updateDoc(doc(db, "users", userId), {
           amount: increment(diff),
-        });
-
-        setEditingInvest(null);
-        setToastMsg({ text: "ইনভেস্ট সফলভাবে আপডেট করা হয়েছে", type: "success" });
-        setTimeout(() => setToastMsg(null), 3000);
-        // Reload history list in view
-        if (selectedUser) handleShowUserHistory(selectedUser);
+        }).catch((err) => console.warn(err));
       }
+
+      setEditingInvest(null);
+      setToastMsg({ text: "ইনভেস্ট সফলভাবে আপডেট করা হয়েছে", type: "success" });
+      setTimeout(() => setToastMsg(null), 3000);
+      // Reload history list in view
+      if (selectedUser) handleShowUserHistory(selectedUser);
     } catch (e: any) {
       console.error(e);
       setToastMsg({ text: "ইনভেস্ট আপডেট করা যায়নি: " + (e?.message || "সার্ভার এরর"), type: "error" });
@@ -2006,11 +2046,11 @@ export default function DashboardView({
           await deleteDoc(doc(db, "projects", p.id));
 
           // Batch delete associated transaction files asynchronously
-          getDocs(query(collection(db, "accounts"), where("projectId", "==", p.id)))
-            .then((trxsSnap) => {
-              trxsSnap.docs.forEach((d) => deleteDoc(d.ref).catch(() => {}));
+          safeGetDocs(query(collection(db, "accounts"), where("projectId", "==", p.id)), 2000)
+            .then((trxsSnap: any) => {
+              trxsSnap.docs.forEach((d: any) => deleteDoc(d.ref).catch(() => {}));
             })
-            .catch((err) => console.warn("Error deleting project accounts:", err));
+            .catch((err: any) => console.warn("Error deleting project accounts:", err));
 
           setSelectedProject(null);
           setShowHistoryModal(false);
@@ -2536,10 +2576,10 @@ export default function DashboardView({
                 totalSavingsWithdrawals: 0
               };
               const uAmt = calc.totalDeposits;
-              const isSaving = myMember.accountType === "saving";
-              const shareInvestment = isSaving ? 0 : calc.expense;
+              const isSaving = myMember.accountType === "saving" && !myMember.customShare && (calc.specialInv || 0) <= 0;
+              const shareInvestment = calc.expense;
               const activeBalance = isSaving ? calc.savingsBalance : Math.max(0, calc.totalDeposits - calc.expense - (calc.totalSavingsWithdrawals || 0));
-              const shareProfit = isSaving ? 0 : calc.income;
+              const shareProfit = calc.income;
               const netWorth = activeBalance + shareProfit;
 
               return (
@@ -2730,10 +2770,10 @@ export default function DashboardView({
                       };
                       const uAmt = calc.totalDeposits;
                       
-                      const isSaving = u.accountType === "saving";
-                      const shareInvestment = isSaving ? 0 : calc.expense;
+                      const isSaving = u.accountType === "saving" && !u.customShare && (calc.specialInv || 0) <= 0;
+                      const shareInvestment = calc.expense;
                       const activeBalance = isSaving ? calc.savingsBalance : Math.max(0, calc.totalDeposits - calc.expense - (calc.totalSavingsWithdrawals || 0));
-                      const shareProfit = isSaving ? 0 : calc.income;
+                      const shareProfit = calc.income;
                       const netWorth = activeBalance + shareProfit;
 
                       return (
@@ -2813,51 +2853,163 @@ export default function DashboardView({
                     // Calculate member's own participation
                     const uShare = (memberProjectsShare[currentUser.docId] || {})[p.id] || 0;
                     const uSpec = (memberSpecialInvMap[currentUser.docId] || {})[p.id] || 0;
-                    const uGen = memberGeneralInv[currentUser.docId] || 0;
+                    const uGen = memberGeneralDepositMap[currentUser.docId] !== undefined ? memberGeneralDepositMap[currentUser.docId] : (memberGeneralInv[currentUser.docId] || 0);
                     const uTotalInv = uSpec + uGen;
                     const myProfit = uShare * profit;
 
                     return (
-                      <tr
-                        key={p.id}
-                        onClick={() => handleShowProjectHistory(p)}
-                        className="hover:bg-slate-50/80 cursor-pointer font-medium"
-                      >
-                        <td className="p-3 font-bold text-blue-700">{p.name}</td>
-                        <td className="p-3 text-right font-bold text-slate-600">৳{formatNum(budget)}</td>
-                        <td className="p-3 text-right font-bold text-blue-600">৳{formatNum(totalInv)}</td>
-                        {currentUser.role === "member" && (
-                          <>
-                            <td className="p-3 text-right font-extrabold text-blue-600">{(uShare * 100).toFixed(1)}%</td>
-                            <td className="p-3 text-right font-bold text-slate-700">৳{formatNum(uTotalInv)}</td>
-                            <td className={`p-3 text-right font-bold ${myProfit >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
-                              ৳{formatNum(myProfit)}
-                            </td>
-                          </>
-                        )}
-                        <td className="p-3 text-right font-bold">
-                          {diff > 0 ? (
-                            <span className="text-amber-600 font-extrabold">+৳{formatNum(diff)} <span className="text-[10px] text-amber-500 font-medium">(অতিরিক্ত)</span></span>
-                          ) : diff < 0 ? (
-                            <span className="text-rose-500 font-extrabold">-৳{formatNum(Math.abs(diff))} <span className="text-[10px] text-rose-400 font-medium">(বাকি)</span></span>
-                          ) : (
-                            <span className="text-slate-400">৳০</span>
+                      <React.Fragment key={p.id}>
+                        <tr
+                          onClick={() => handleShowProjectHistory(p)}
+                          className="hover:bg-slate-50/80 cursor-pointer font-medium"
+                        >
+                          <td className="p-3 font-bold text-blue-700">
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="text-xs sm:text-sm font-bold text-blue-700">{p.name}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedProjectId(expandedProjectId === p.id ? null : p.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200/70 transition cursor-pointer"
+                                title="অংশীদার শেয়ার তালিকা বিস্তারিত দেখুন"
+                              >
+                                <Users className="w-3 h-3 text-blue-500" />
+                                <span>অংশীদার তালিকা ({companyMembers.filter(m => ((memberProjectsShare[m.docId] || {})[p.id] || 0) > 0 || ((memberSpecialInvMap[m.docId] || {})[p.id] || 0) > 0 || (memberTotalDepositsMap[m.docId] || 0) > 0).length} জন)</span>
+                                {expandedProjectId === p.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-3 text-right font-bold text-slate-600">৳{formatNum(budget)}</td>
+                          <td className="p-3 text-right font-bold text-blue-600">৳{formatNum(totalInv)}</td>
+                          {currentUser.role === "member" && (
+                            <>
+                              <td className="p-3 text-right font-extrabold text-blue-600">{(uShare * 100).toFixed(1)}%</td>
+                              <td className="p-3 text-right font-bold text-slate-700">৳{formatNum(uTotalInv)}</td>
+                              <td className={`p-3 text-right font-bold ${myProfit >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                                ৳{formatNum(myProfit)}
+                              </td>
+                            </>
                           )}
-                        </td>
-                        <td className="p-3 text-right text-rose-500 font-bold">৳{formatNum(s.expense)}</td>
-                        <td className="p-3 text-right text-emerald-600 font-bold">৳{formatNum(totalProjectSale)}</td>
-                        <td className={`p-3 text-right font-bold ${profit >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
-                          ৳{formatNum(profit)}
-                        </td>
-                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => setShowProjectDetails(p)}
-                            className="px-2.5 py-1 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg border border-blue-100 font-bold transition flex items-center gap-0.5 mx-auto"
-                          >
-                            <Info className="w-3 h-3" /> ভিউ
-                          </button>
-                        </td>
-                      </tr>
+                          <td className="p-3 text-right font-bold">
+                            {diff > 0 ? (
+                              <span className="text-amber-600 font-extrabold">+৳{formatNum(diff)} <span className="text-[10px] text-amber-500 font-medium">(অতিরিক্ত)</span></span>
+                            ) : diff < 0 ? (
+                              <span className="text-rose-500 font-extrabold">-৳{formatNum(Math.abs(diff))} <span className="text-[10px] text-rose-400 font-medium">(বাকি)</span></span>
+                            ) : (
+                              <span className="text-slate-400">৳০</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right text-rose-500 font-bold">৳{formatNum(s.expense)}</td>
+                          <td className="p-3 text-right text-emerald-600 font-bold">৳{formatNum(totalProjectSale)}</td>
+                          <td className={`p-3 text-right font-bold ${profit >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                            ৳{formatNum(profit)}
+                          </td>
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setShowProjectDetails(p)}
+                              className="px-2.5 py-1 text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg border border-blue-100 font-bold transition flex items-center gap-0.5 mx-auto"
+                            >
+                              <Info className="w-3 h-3" /> ভিউ
+                            </button>
+                          </td>
+                        </tr>
+                        {expandedProjectId === p.id && (
+                          <tr className="bg-slate-50/90 border-b border-slate-200">
+                            <td colSpan={currentUser.role === "member" ? 11 : 8} className="p-3">
+                              <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                                  <div className="flex items-center gap-2 font-bold text-xs text-blue-700">
+                                    <Users className="w-4 h-4 text-blue-600" />
+                                    <span className="text-xs sm:text-sm font-extrabold">{p.name} - সকল সদস্যের অংশীদারি ও শেয়ার পার্সেন্টেজ</span>
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-slate-500 flex flex-wrap items-center gap-3">
+                                    <span>বাজেট: <strong className="text-slate-700">৳{formatNum(budget)}</strong></span>
+                                    <span>মোট ইনভেস্ট: <strong className="text-blue-600">৳{formatNum(totalInv)}</strong></span>
+                                    <span>লাভ/ক্ষতি: <strong className={profit >= 0 ? "text-emerald-600" : "text-rose-500"}>৳{formatNum(profit)}</strong></span>
+                                  </div>
+                                </div>
+
+                                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                                  <table className="w-full text-xs divide-y divide-slate-100">
+                                    <thead>
+                                      <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-extrabold">
+                                        <th className="p-2.5 text-left">সদস্যের নাম</th>
+                                        <th className="p-2.5 text-right">বিশেষ ইনভেস্ট</th>
+                                        <th className="p-2.5 text-right">সাধারণ ইনভেস্ট</th>
+                                        <th className="p-2.5 text-right font-black text-slate-700">মোট ইনভেস্ট</th>
+                                        <th className="p-2.5 text-center text-blue-600 font-black">শেয়ার %</th>
+                                        <th className="p-2.5 text-right text-rose-500 font-bold">শেয়ার খরচ</th>
+                                        <th className="p-2.5 text-right text-emerald-600 font-black">শেয়ার লভ্যাংশ</th>
+                                        {isCompanyOrAdmin && <th className="p-2.5 text-center">অ্যাকশন</th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 font-medium">
+                                      {companyMembers
+                                        .filter((m) => {
+                                          const mSpec = (memberSpecialInvMap[m.docId] || {})[p.id] || 0;
+                                          const mDep = memberTotalDepositsMap[m.docId] || 0;
+                                          const mShare = (memberProjectsShare[m.docId] || {})[p.id] || 0;
+                                          return mSpec > 0 || mDep > 0 || mShare > 0 || m.customShare;
+                                        })
+                                        .map((m) => {
+                                          const mSpec = (memberSpecialInvMap[m.docId] || {})[p.id] || 0;
+                                          const mGen = Math.max(0, (memberTotalDepositsMap[m.docId] || 0) - (memberTotalSpecialInv[m.docId] || 0));
+                                          const mTotal = mSpec + mGen;
+                                          const mShare = (memberProjectsShare[m.docId] || {})[p.id] || 0;
+                                          const mExpense = s.expense * mShare;
+                                          const mProfit = mShare * profit;
+
+                                          return (
+                                            <tr key={m.docId} className="hover:bg-blue-50/40 transition">
+                                              <td className="p-2.5 font-bold text-slate-800">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span>{m.name}</span>
+                                                  {m.customShare !== undefined && m.customShare !== null && m.customShare !== "" && (
+                                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-bold border border-purple-200">
+                                                      কাস্টম
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </td>
+                                              <td className="p-2.5 text-right font-bold text-slate-600">৳{formatNum(mSpec)}</td>
+                                              <td className="p-2.5 text-right font-bold text-slate-600">৳{formatNum(mGen)}</td>
+                                              <td className="p-2.5 text-right font-black text-slate-800">৳{formatNum(mTotal)}</td>
+                                              <td className="p-2.5 text-center font-black text-blue-600 text-xs">
+                                                {(mShare * 100).toFixed(1)}%
+                                              </td>
+                                              <td className="p-2.5 text-right font-bold text-rose-500">৳{formatNum(mExpense)}</td>
+                                              <td className={`p-2.5 text-right font-black ${mProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                                                ৳{formatNum(mProfit)}
+                                              </td>
+                                              {isCompanyOrAdmin && (
+                                                <td className="p-2.5 text-center">
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setEditingUserShare(m);
+                                                      setCustomShareValue(m.customShare !== undefined && m.customShare !== null ? String(m.customShare) : "");
+                                                    }}
+                                                    className="p-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 transition cursor-pointer"
+                                                    title="শেয়ার পার্সেন্টেজ সেটিংস"
+                                                  >
+                                                    <Settings className="w-3.5 h-3.5" />
+                                                  </button>
+                                                </td>
+                                              )}
+                                            </tr>
+                                          );
+                                        })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
               </tbody>
@@ -4805,7 +4957,7 @@ export default function DashboardView({
                     <div className="flex justify-between">
                       <span className="text-indigo-700 font-medium">আমার মোট ইনভেস্টঃ</span>
                       <span className="font-bold text-indigo-950">
-                        ৳{formatNum(((memberSpecialInvMap[currentUser.docId] || {})[currentProject.id] || 0) + (memberGeneralInv[currentUser.docId] || 0))}
+                        ৳{formatNum(((memberSpecialInvMap[currentUser.docId] || {})[currentProject.id] || 0) + (memberGeneralDepositMap[currentUser.docId] !== undefined ? memberGeneralDepositMap[currentUser.docId] : (memberGeneralInv[currentUser.docId] || 0)))}
                       </span>
                     </div>
                     <div className="flex justify-between border-t border-indigo-100/50 pt-1.5 font-bold">
@@ -4970,10 +5122,9 @@ export default function DashboardView({
                 </h4>
                 <div className="max-h-40 overflow-y-auto border border-slate-100 rounded-2xl bg-slate-50/50 p-2 space-y-1.5">
                   {companyMembers
-                    .filter((u) => u.accountType !== "saving")
                     .map((u) => {
                       const uSpec = (memberSpecialInvMap[u.docId] || {})[currentProject.id] || 0;
-                      const uGen = memberGeneralInv[u.docId] || 0;
+                      const uGen = memberGeneralDepositMap[u.docId] !== undefined ? memberGeneralDepositMap[u.docId] : (memberGeneralInv[u.docId] || 0);
                       const uTotal = uSpec + uGen;
                       const uShare = (memberProjectsShare[u.docId] || {})[currentProject.id] || 0;
 

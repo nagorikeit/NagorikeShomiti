@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { collection, doc, deleteDoc, updateDoc, onSnapshot, getDocs, addDoc, setDoc } from "firebase/firestore";
-import { db, secondaryAuth } from "../firebase";
+import { db, secondaryAuth, safeGetDocs } from "../firebase";
 import { User } from "../types";
 import {
   STATUS_LABELS,
@@ -113,10 +113,10 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
     if (!deleteTarget) return;
     setActionLoading(true);
     try {
-      // 1. Delete history subcollection documents
-      const histSnap = await getDocs(collection(db, "users", deleteTarget.docId, "history"));
+      // 1. Delete history subcollection documents safely (offline & online)
+      const histSnap = await safeGetDocs(collection(db, "users", deleteTarget.docId, "history"), 2000);
       for (const d of histSnap.docs) {
-        await deleteDoc(d.ref);
+        await deleteDoc(d.ref).catch(() => {});
       }
       // 2. Delete user document
       await deleteDoc(doc(db, "users", deleteTarget.docId));
@@ -125,6 +125,7 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
       setTimeout(() => setToastMsg(null), 3000);
     } catch (e: any) {
       console.error(e);
+      setDeleteTarget(null);
       setToastMsg({ text: "ডিলিট করা যায়নি", type: "error" });
       setTimeout(() => setToastMsg(null), 3000);
     } finally {
@@ -724,16 +725,23 @@ export default function MemberListView({ currentUser, onNavigate }: MemberListVi
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => setDeleteTarget(null)}
+                type="button"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setActionLoading(false);
+                }}
+                disabled={actionLoading}
                 className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs transition"
               >
                 বাতিল
               </button>
               <button
+                type="button"
                 onClick={handleDeleteMember}
-                className="flex-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs transition"
+                disabled={actionLoading}
+                className="flex-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs transition disabled:opacity-50"
               >
-                ডিলিট করুন
+                {actionLoading ? "ডিলিট হচ্ছে..." : "ডিলিট করুন"}
               </button>
             </div>
           </div>
