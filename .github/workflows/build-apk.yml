@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android Release (AAB & APK)
 
 on:
   push:
@@ -7,15 +7,26 @@ on:
       - master
   pull_request:
   workflow_dispatch:
+    inputs:
+      versionCode:
+        description: 'Version Code for Play Store (Must be higher with every release: 1, 2, 3...)'
+        required: false
+        default: '1'
+        type: string
+      versionName:
+        description: 'Version Name (e.g. 1.0.0, 1.0.1, 1.1.0)'
+        required: false
+        default: '1.0.0'
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
-    name: Build Pure Android APK
+    name: Build Signed AAB & Release APK
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       # Step 1: Checkout Repository Code
@@ -59,27 +70,85 @@ jobs:
           fi
           npx cap sync android
 
-      # Step 8: Build Pure Android Debug APK
-      - name: Build Android Debug APK
+      # Step 8: Setup Release Signing Keystore
+      - name: Setup Signing Keystore
+        id: keystore_setup
+        run: |
+          mkdir -p $HOME/keystore
+          KEYSTORE_FILE="$HOME/keystore/release.keystore"
+          
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "--> Using official release keystore from GitHub Secrets."
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$KEYSTORE_FILE"
+            echo "RELEASE_KEYSTORE_PATH=$KEYSTORE_FILE" >> $GITHUB_ENV
+            echo "RELEASE_KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "RELEASE_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "RELEASE_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> $GITHUB_ENV
+          else
+            echo "--> GitHub Secrets not set yet. Generating auto release keystore for this build..."
+            keytool -genkeypair -v -keystore "$KEYSTORE_FILE" -alias amarshomiti -keyalg RSA -keysize 2048 -validity 10000 -storepass "AmarShomiti@2026" -keypass "AmarShomiti@2026" -dname "CN=AmarShomiti, OU=IT, O=AmarShomiti, L=Dhaka, ST=Dhaka, C=BD"
+            echo "RELEASE_KEYSTORE_PATH=$KEYSTORE_FILE" >> $GITHUB_ENV
+            echo "RELEASE_KEYSTORE_PASSWORD=AmarShomiti@2026" >> $GITHUB_ENV
+            echo "RELEASE_KEY_ALIAS=amarshomiti" >> $GITHUB_ENV
+            echo "RELEASE_KEY_PASSWORD=AmarShomiti@2026" >> $GITHUB_ENV
+            
+            # Export base64 of this generated keystore to a file so it can be downloaded if the user wants to keep this exact key!
+            mkdir -p keystore-backup
+            base64 "$KEYSTORE_FILE" > keystore-backup/keystore-base64.txt
+            cp "$KEYSTORE_FILE" keystore-backup/release.keystore
+          fi
+
+      # Step 9: Build Android Release Bundle (AAB) and Release APK
+      - name: Build Android Release Bundle (AAB) & APK
         run: |
           cd android
           gradle wrapper --gradle-version 8.14.3
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          
+          VERSION_CODE="${{ inputs.versionCode || '1' }}"
+          VERSION_NAME="${{ inputs.versionName || '1.0.0' }}"
+          echo "=========================================="
+          echo "Building with Version Code: $VERSION_CODE"
+          echo "Building with Version Name: $VERSION_NAME"
+          echo "=========================================="
+          
+          ./gradlew bundleRelease assembleRelease -PappVersionCode="$VERSION_CODE" -PappVersionName="$VERSION_NAME" --no-daemon --stacktrace
 
-      # Step 9: Prepare APK Output
-      - name: Collect Generated APK
+      # Step 10: Collect Output Artifacts
+      - name: Collect Release Artifacts
         run: |
-          mkdir -p apk-output
-          find android/app/build/outputs/apk -name "*.apk" -exec cp {} apk-output/amar-somiti.apk \;
-          echo "=== APK File Generated Successfully ==="
-          ls -lh apk-output/
+          mkdir -p release-output
+          # Locate Signed AAB
+          find android/app/build/outputs/bundle/release -name "*.aab" -exec cp {} release-output/amar-somiti-release.aab \;
+          # Locate Signed APK
+          find android/app/build/outputs/apk/release -name "*.apk" -exec cp {} release-output/amar-somiti-release.apk \;
+          
+          echo "=== Release Artifacts Generated Successfully ==="
+          ls -lh release-output/
 
-      # Step 10: Upload APK Artifact for Download
-      - name: Upload APK
+      # Step 11: Upload Signed AAB for Google Play Console
+      - name: Upload Play Store AAB
         uses: actions/upload-artifact@v4
         with:
-          name: amar-somiti-android-apk
-          path: apk-output/*.apk
+          name: amar-somiti-playstore-aab
+          path: release-output/amar-somiti-release.aab
           if-no-files-found: error
           retention-days: 30
+
+      # Step 12: Upload Release APK for Direct Mobile Installation
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: amar-somiti-release-apk
+          path: release-output/amar-somiti-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # Step 13: Optional Keystore Backup (only when auto-generated)
+      - name: Upload Auto-Generated Keystore Backup
+        if: ${{ env.RELEASE_KEYSTORE_PASSWORD == 'AmarShomiti@2026' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: amar-somiti-generated-keystore
+          path: keystore-backup/*
+          retention-days: 14
